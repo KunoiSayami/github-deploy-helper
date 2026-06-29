@@ -1,0 +1,39 @@
+bind            = "0.0.0.0:9000"
+log_dir         = "logs"
+default_timeout = 30
+
+[telegram]
+bot_token  = "123456:ABC-your-bot-token-here"
+# api_server = "https://your-custom-api-server.example.com"
+send_to    = [-100123456789]
+
+[[projects]]
+name        = "my-api"
+working_dir = "/srv/my-api"
+secret      = "your-webhook-secret-here"
+branch      = "main"
+timeout     = 60
+bypass      = false
+deploy_toml = false
+
+[projects.commit_filter]
+mode  = "exclude"
+globs = ["docs/**", "*.md", "*.txt"]
+
+[projects.commands]
+stop   = "systemctl stop my-api"
+init   = "cargo build --release"
+update = "cargo build --release"
+start  = "systemctl start my-api"
+# restart = "systemctl restart my-api"
+# pull  = "git pull --ff-only"
+
+[[projects]]
+name        = "another-service"
+working_dir = "/srv/another-service"
+secret      = "another-secret"
+branch      = "main"
+deploy_toml = true
+
+[projects.commands]
+pull = "git pull origin main"
