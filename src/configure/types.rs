@@ -6,6 +6,7 @@ pub struct TomlConfig {
     bind: String,
     log_dir: String,
     default_timeout: Option<u64>,
+    log_keep_days: Option<u64>,
     telegram: Option<TomlTelegram>,
     projects: Vec<TomlProject>,
 }
@@ -19,6 +20,9 @@ impl TomlConfig {
     }
     pub fn default_timeout(&self) -> u64 {
         self.default_timeout.unwrap_or(30)
+    }
+    pub fn log_keep_days(&self) -> u64 {
+        self.log_keep_days.unwrap_or(30)
     }
     pub fn telegram(&self) -> Option<&TomlTelegram> {
         self.telegram.as_ref()

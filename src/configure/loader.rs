@@ -143,6 +143,7 @@ pub struct Config {
     log_dir: String,
     #[allow(dead_code)]
     default_timeout: Duration,
+    log_keep_days: u64,
     telegram: Option<TelegramConfig>,
     projects: HashMap<String, Arc<Project>>,
 }
@@ -157,6 +158,9 @@ impl Config {
     #[allow(dead_code)]
     pub fn default_timeout(&self) -> Duration {
         self.default_timeout
+    }
+    pub fn log_keep_days(&self) -> u64 {
+        self.log_keep_days
     }
     pub fn telegram(&self) -> Option<&TelegramConfig> {
         self.telegram.as_ref()
@@ -235,6 +239,7 @@ pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
         bind: toml.bind().to_owned(),
         log_dir: toml.log_dir().to_owned(),
         default_timeout,
+        log_keep_days: toml.log_keep_days(),
         telegram,
         projects,
     })

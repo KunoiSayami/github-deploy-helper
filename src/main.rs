@@ -44,7 +44,7 @@ pub struct AppState {
     pub log_dir: PathBuf,
 }
 
-fn init_tracing(log_dir: &Path, projects: &[&str]) -> Vec<WorkerGuard> {
+fn init_tracing(log_dir: &Path) -> Vec<WorkerGuard> {
     use tracing_subscriber::prelude::*;
 
     let mut guards = Vec::new();
@@ -54,38 +54,20 @@ fn init_tracing(log_dir: &Path, projects: &[&str]) -> Vec<WorkerGuard> {
 
     let console_layer = tracing_subscriber::fmt::layer().with_filter(env_filter);
 
-    // Combined non-blocking writer: all project execution logs go to a single
-    // file (deploy.log) with project=name fields for filtering. One file keeps
-    // the tracing subscriber setup simple.
-    let combined_log = log_dir.join("deploy.log");
     if let Err(e) = std::fs::create_dir_all(log_dir) {
         eprintln!("Warning: cannot create log dir: {e}");
     }
 
-    let _ = projects; // per-project writers replaced by single combined log
-
-    match std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&combined_log)
-    {
-        Ok(_) => {
-            let appender = tracing_appender::rolling::never(log_dir, "deploy.log");
-            let (writer, guard) = tracing_appender::non_blocking(appender);
-            guards.push(guard);
-            let file_layer = tracing_subscriber::fmt::layer()
-                .with_writer(writer)
-                .with_ansi(false);
-            tracing_subscriber::registry()
-                .with(console_layer)
-                .with(file_layer)
-                .init();
-        }
-        Err(e) => {
-            eprintln!("Warning: cannot open deploy.log: {e}");
-            tracing_subscriber::registry().with(console_layer).init();
-        }
-    }
+    let appender = tracing_appender::rolling::daily(log_dir, "deploy.log");
+    let (writer, guard) = tracing_appender::non_blocking(appender);
+    guards.push(guard);
+    let file_layer = tracing_subscriber::fmt::layer()
+        .with_writer(writer)
+        .with_ansi(false);
+    tracing_subscriber::registry()
+        .with(console_layer)
+        .with(file_layer)
+        .init();
 
     guards
 }
@@ -96,9 +78,15 @@ async fn main() -> anyhow::Result<()> {
 
     let config = configure::load(&args.config)?;
 
-    let project_names: Vec<&str> = config.projects().values().map(|p| p.name()).collect();
     let log_dir = PathBuf::from(config.log_dir());
-    let _guards = init_tracing(&log_dir, &project_names);
+    let log_keep_days = config.log_keep_days();
+    let _guards = init_tracing(&log_dir);
+
+    logging::cleaner::clean_old_logs(&log_dir, log_keep_days);
+    tokio::spawn(logging::cleaner::start_cleaner(
+        log_dir.clone(),
+        log_keep_days,
+    ));
 
     info!("Loaded {} project(s)", config.projects().len());
 

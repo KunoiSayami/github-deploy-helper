@@ -1,6 +1,7 @@
 bind            = "0.0.0.0:9000"
 log_dir         = "logs"
 default_timeout = 30
+log_keep_days   = 30   # delete log files older than this many days (0 = keep forever)
 
 [telegram]
 bot_token  = "123456:ABC-your-bot-token-here"
