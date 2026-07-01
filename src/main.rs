@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use anyhow::Context;
 use axum::Router;
 use axum::routing::post;
 use clap::Parser;
@@ -10,10 +11,12 @@ use tracing::info;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::EnvFilter;
 
+use auth::github_app::GithubAppAuth;
 use configure::Project;
 use deploy::lock::{DeployLock, DeployLockMap};
 use notify::telegram::TelegramNotifier;
 
+mod auth;
 mod configure;
 mod deploy;
 mod logging;
@@ -42,6 +45,7 @@ pub struct AppState {
     pub no_lock: bool,
     pub notifier: Option<TelegramNotifier>,
     pub log_dir: PathBuf,
+    pub github_app: Option<GithubAppAuth>,
 }
 
 fn init_tracing(log_dir: &Path) -> Vec<WorkerGuard> {
@@ -98,6 +102,19 @@ async fn main() -> anyhow::Result<()> {
         )
     });
 
+    let github_app = config
+        .github_app()
+        .map(|g| {
+            let private_key = std::fs::read_to_string(g.private_key_path()).with_context(|| {
+                format!(
+                    "Cannot read GitHub App private key at {}",
+                    g.private_key_path()
+                )
+            })?;
+            GithubAppAuth::new(g.app_id(), &private_key)
+        })
+        .transpose()?;
+
     if args.force_init {
         for project in config.projects().values() {
             project
@@ -117,6 +134,7 @@ async fn main() -> anyhow::Result<()> {
         locks,
         no_lock: args.no_lock,
         notifier,
+        github_app,
         log_dir,
     });
 

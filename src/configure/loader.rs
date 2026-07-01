@@ -7,7 +7,8 @@ use std::time::Duration;
 use anyhow::Context;
 
 use super::types::{
-    FilterMode, TomlCommands, TomlCommitFilter, TomlConfig, TomlProjectOverride, parse_send_to,
+    FilterMode, TomlAuthMode, TomlCommands, TomlCommitFilter, TomlConfig, TomlProjectAuth,
+    TomlProjectOverride, parse_send_to,
 };
 
 #[derive(Clone)]
@@ -77,6 +78,47 @@ impl From<&TomlCommands> for Commands {
     }
 }
 
+#[derive(Clone)]
+pub enum ProjectAuth {
+    Ssh,
+    GithubApp { owner: String, repo: String },
+}
+
+impl TryFrom<&TomlProjectAuth> for ProjectAuth {
+    type Error = anyhow::Error;
+
+    fn try_from(t: &TomlProjectAuth) -> anyhow::Result<Self> {
+        match t.mode() {
+            TomlAuthMode::Ssh => Ok(Self::Ssh),
+            TomlAuthMode::GithubApp => {
+                let owner = t
+                    .owner()
+                    .context("auth.mode = \"github_app\" requires auth.owner")?
+                    .to_owned();
+                let repo = t
+                    .repo()
+                    .context("auth.mode = \"github_app\" requires auth.repo")?
+                    .to_owned();
+                Ok(Self::GithubApp { owner, repo })
+            }
+        }
+    }
+}
+
+pub struct GithubAppConfig {
+    app_id: u64,
+    private_key_path: String,
+}
+
+impl GithubAppConfig {
+    pub fn app_id(&self) -> u64 {
+        self.app_id
+    }
+    pub fn private_key_path(&self) -> &str {
+        &self.private_key_path
+    }
+}
+
 pub struct Project {
     name: String,
     http_path: String,
@@ -87,6 +129,7 @@ pub struct Project {
     bypass: bool,
     commit_filter: Option<CommitFilter>,
     commands: Commands,
+    auth: ProjectAuth,
     pub first_deploy: Arc<AtomicBool>,
 }
 
@@ -118,6 +161,9 @@ impl Project {
     pub fn commands(&self) -> &Commands {
         &self.commands
     }
+    pub fn auth(&self) -> &ProjectAuth {
+        &self.auth
+    }
 }
 
 pub struct TelegramConfig {
@@ -145,6 +191,7 @@ pub struct Config {
     default_timeout: Duration,
     log_keep_days: u64,
     telegram: Option<TelegramConfig>,
+    github_app: Option<GithubAppConfig>,
     projects: HashMap<String, Arc<Project>>,
 }
 
@@ -165,6 +212,9 @@ impl Config {
     pub fn telegram(&self) -> Option<&TelegramConfig> {
         self.telegram.as_ref()
     }
+    pub fn github_app(&self) -> Option<&GithubAppConfig> {
+        self.github_app.as_ref()
+    }
     pub fn projects(&self) -> &HashMap<String, Arc<Project>> {
         &self.projects
     }
@@ -183,10 +233,16 @@ pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
         send_to: parse_send_to(t.send_to()),
     });
 
+    let github_app = toml.github_app().map(|g| GithubAppConfig {
+        app_id: g.app_id(),
+        private_key_path: g.private_key_path().to_owned(),
+    });
+
     let mut projects = HashMap::new();
 
     for tp in toml.projects() {
-        let (branch, timeout_override, bypass, commit_filter, commands) = if tp.deploy_toml() {
+        let (branch, timeout_override, bypass, commit_filter, commands, auth) = if tp.deploy_toml()
+        {
             let deploy_path = format!("{}/deploy.toml", tp.working_dir());
             let override_text = std::fs::read_to_string(&deploy_path)
                 .with_context(|| format!("Cannot read deploy.toml at {deploy_path}"))?;
@@ -203,7 +259,8 @@ pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
                 .as_ref()
                 .or(tp.commit_filter())
                 .map(CommitFilter::from);
-            (branch, timeout, bypass, filter, merged_commands)
+            let auth = ov.auth.clone().or_else(|| tp.auth().cloned());
+            (branch, timeout, bypass, filter, merged_commands, auth)
         } else {
             (
                 tp.branch().to_owned(),
@@ -211,8 +268,21 @@ pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
                 tp.bypass(),
                 tp.commit_filter().map(CommitFilter::from),
                 tp.commands().clone(),
+                tp.auth().cloned(),
             )
         };
+
+        let auth = match &auth {
+            Some(a) => ProjectAuth::try_from(a)
+                .with_context(|| format!("Invalid auth config for project {}", tp.name()))?,
+            None => ProjectAuth::Ssh,
+        };
+        if matches!(auth, ProjectAuth::GithubApp { .. }) && github_app.is_none() {
+            anyhow::bail!(
+                "Project {} uses auth.mode = \"github_app\" but no [github_app] config is present",
+                tp.name()
+            );
+        }
 
         let effective_timeout =
             Duration::from_secs(timeout_override.unwrap_or(default_timeout.as_secs()));
@@ -229,6 +299,7 @@ pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
             bypass,
             commit_filter,
             commands: Commands::from(&commands),
+            auth,
             first_deploy: Arc::new(AtomicBool::new(true)),
         });
 
@@ -241,6 +312,7 @@ pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
         default_timeout,
         log_keep_days: toml.log_keep_days(),
         telegram,
+        github_app,
         projects,
     })
 }

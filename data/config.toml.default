@@ -8,6 +8,11 @@ bot_token  = "123456:ABC-your-bot-token-here"
 # api_server = "https://your-custom-api-server.example.com"
 send_to    = [-100123456789]
 
+# Optional: shared GitHub App used by any project with `auth.mode = "github_app"` below.
+# [github_app]
+# app_id           = 123456
+# private_key_path = "/etc/github-deploy-helper/app-private-key.pem"
+
 [[projects]]
 name        = "my-api"
 working_dir = "/srv/my-api"
@@ -39,3 +44,19 @@ deploy_toml = true
 
 [projects.commands]
 pull = "git pull origin main"
+
+# Example: authenticate the pull step via a GitHub App installation instead of an
+# SSH deploy key (requires the [github_app] block above and an https:// origin remote).
+# [[projects]]
+# name        = "app-authed-service"
+# working_dir = "/srv/app-authed-service"
+# secret      = "yet-another-secret"
+# branch      = "main"
+#
+# [projects.auth]
+# mode  = "github_app"
+# owner = "my-org"
+# repo  = "app-authed-service"
+#
+# [projects.commands]
+# pull = "git -c http.extraHeader=\"AUTHORIZATION: basic $(printf 'x-access-token:%s' \"$GH_TOKEN\" | base64 -w0)\" pull --ff-only"

@@ -20,6 +20,12 @@ tracing-appender = "0.2"
 dashmap = "6"
 glob = "0.3"
 teloxide = { version = "0.17", default-features = false, features = ["rustls"] }
+jsonwebtoken = "10"
+reqwest = { version = "0.13", default-features = false, features = [
+    "rustls",
+    "json",
+    "socks",
+] }
 
 [profile.release]
 lto = true

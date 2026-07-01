@@ -8,6 +8,7 @@ pub struct TomlConfig {
     default_timeout: Option<u64>,
     log_keep_days: Option<u64>,
     telegram: Option<TomlTelegram>,
+    github_app: Option<TomlGithubApp>,
     projects: Vec<TomlProject>,
 }
 
@@ -27,8 +28,26 @@ impl TomlConfig {
     pub fn telegram(&self) -> Option<&TomlTelegram> {
         self.telegram.as_ref()
     }
+    pub fn github_app(&self) -> Option<&TomlGithubApp> {
+        self.github_app.as_ref()
+    }
     pub fn projects(&self) -> &[TomlProject] {
         &self.projects
+    }
+}
+
+#[derive(Deserialize, Clone)]
+pub struct TomlGithubApp {
+    app_id: u64,
+    private_key_path: String,
+}
+
+impl TomlGithubApp {
+    pub fn app_id(&self) -> u64 {
+        self.app_id
+    }
+    pub fn private_key_path(&self) -> &str {
+        &self.private_key_path
     }
 }
 
@@ -62,6 +81,7 @@ pub struct TomlProject {
     deploy_toml: Option<bool>,
     commit_filter: Option<TomlCommitFilter>,
     commands: TomlCommands,
+    auth: Option<TomlProjectAuth>,
 }
 
 impl TomlProject {
@@ -92,6 +112,9 @@ impl TomlProject {
     pub fn commands(&self) -> &TomlCommands {
         &self.commands
     }
+    pub fn auth(&self) -> Option<&TomlProjectAuth> {
+        self.auth.as_ref()
+    }
 }
 
 #[derive(Deserialize, Clone, Default)]
@@ -101,6 +124,33 @@ pub struct TomlProjectOverride {
     pub bypass: Option<bool>,
     pub commit_filter: Option<TomlCommitFilter>,
     pub commands: Option<TomlCommands>,
+    pub auth: Option<TomlProjectAuth>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct TomlProjectAuth {
+    mode: TomlAuthMode,
+    owner: Option<String>,
+    repo: Option<String>,
+}
+
+impl TomlProjectAuth {
+    pub fn mode(&self) -> TomlAuthMode {
+        self.mode.clone()
+    }
+    pub fn owner(&self) -> Option<&str> {
+        self.owner.as_deref()
+    }
+    pub fn repo(&self) -> Option<&str> {
+        self.repo.as_deref()
+    }
+}
+
+#[derive(Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TomlAuthMode {
+    Ssh,
+    GithubApp,
 }
 
 #[derive(Deserialize, Clone)]

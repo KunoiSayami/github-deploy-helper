@@ -12,6 +12,7 @@ A lightweight Rust server that listens for GitHub push webhooks and runs deploym
 - **Deployment locking** — only one deploy per project at a time (disable with `--no-lock`)
 - **Telegram notifications** — notified on deploy start, success, and failure
 - **Log rolling and cleanup** — daily rolling deploy log with configurable retention
+- **GitHub App authentication** — optional per-project alternative to SSH deploy keys for the `pull` step
 
 ## Installation
 
@@ -98,6 +99,49 @@ start  = "systemctl start my-api"
 ```
 
 `secret` is intentionally **not** allowed in `deploy.toml` — keep credentials out of the repository.
+
+### GitHub App authentication (optional, per-project)
+
+By default, the `pull` command authenticates however the host's git/SSH setup is configured — typically a per-repo SSH deploy key. That's fine for a handful of projects, but managing one keypair + deploy key + SSH config entry per repo gets tedious as project count grows.
+
+As an alternative, a project can authenticate via a GitHub App installation instead. This preserves per-repo isolation (the App is installed per-repo/org, same as a deploy key) while replacing key management with one App registration and one private key, shared across all projects that opt in — and tokens auto-expire in about an hour instead of being long-lived.
+
+**This is opt-in and additive.** Projects that don't set `[projects.auth]` behave exactly as before — nothing changes for existing SSH-based configs.
+
+1. **Register a GitHub App** (Settings → Developer settings → GitHub Apps → New GitHub App, either under your personal account or an org):
+   - Permissions: **Repository permissions → Contents: Read-only** is sufficient for pulling.
+   - Generate a **private key** (downloads a `.pem` file) and note the **App ID**.
+   - **Install** the App on each org/account whose repos you want to deploy — you can install the same App into multiple orgs; each installation is scoped to the repos you select there.
+
+2. **Add the App config** (once, shared across all projects):
+
+   ```toml
+   [github_app]
+   app_id           = 123456
+   private_key_path = "/etc/github-deploy-helper/app-private-key.pem"
+   ```
+
+3. **Opt a project in** by adding `[projects.auth]`:
+
+   ```toml
+   [projects.auth]
+   mode  = "github_app"
+   owner = "my-org"           # the org/user that owns the repo
+   repo  = "my-api"           # the repo name
+   ```
+
+   `owner`/`repo` are used to resolve which App installation to use and to request a scoped installation token — they don't need to match `name` or `working_dir`.
+
+4. **Reference the token in your `pull` command.** The server resolves and refreshes the installation token automatically and exposes it to the pull command as the `GH_TOKEN` environment variable (never interpolated into the command string, so it won't show up in `ps`/argv):
+
+   ```toml
+   [projects.commands]
+   pull = "git -c http.extraHeader=\"AUTHORIZATION: basic $(printf 'x-access-token:%s' \"$GH_TOKEN\" | base64 -w0)\" pull --ff-only"
+   ```
+
+   This requires the repo's `origin` remote to use an `https://github.com/...` URL rather than `git@github.com:...`.
+
+`auth` can also be set/overridden in a project's `deploy.toml`, following the same override rules as `commands` and `commit_filter`.
 
 ## Deployment pipeline
 
