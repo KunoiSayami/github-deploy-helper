@@ -129,6 +129,7 @@ pub enum FilterMode {
 pub struct TomlCommands {
     stop: Option<String>,
     pull: Option<String>,
+    no_pull: Option<bool>,
     init: Option<String>,
     update: Option<String>,
     start: Option<String>,
@@ -139,8 +140,11 @@ impl TomlCommands {
     pub fn stop(&self) -> Option<&str> {
         self.stop.as_deref()
     }
-    pub fn pull(&self) -> &str {
-        self.pull.as_deref().unwrap_or("git pull --ff-only")
+    pub fn pull(&self) -> Option<&str> {
+        if self.no_pull.unwrap_or(false) {
+            return None;
+        }
+        Some(self.pull.as_deref().unwrap_or("git pull --ff-only"))
     }
     pub fn init(&self) -> Option<&str> {
         self.init.as_deref()
@@ -158,6 +162,7 @@ impl TomlCommands {
         TomlCommands {
             stop: other.stop.clone().or_else(|| self.stop.clone()),
             pull: other.pull.clone().or_else(|| self.pull.clone()),
+            no_pull: other.no_pull.or(self.no_pull),
             init: other.init.clone().or_else(|| self.init.clone()),
             update: other.update.clone().or_else(|| self.update.clone()),
             start: other.start.clone().or_else(|| self.start.clone()),

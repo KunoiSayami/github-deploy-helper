@@ -28,6 +28,7 @@ update = "cargo build --release"
 start  = "systemctl start my-api"
 # restart = "systemctl restart my-api"
 # pull  = "git pull --ff-only"
+# no_pull = true   # skip the pull step entirely (webhook-only mode)
 
 [[projects]]
 name        = "another-service"

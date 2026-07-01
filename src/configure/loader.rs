@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use anyhow::Context;
 
 use super::types::{
-    parse_send_to, FilterMode, TomlCommands, TomlCommitFilter, TomlConfig, TomlProjectOverride,
+    FilterMode, TomlCommands, TomlCommitFilter, TomlConfig, TomlProjectOverride, parse_send_to,
 };
 
 #[derive(Clone)]
@@ -36,7 +36,7 @@ impl From<&TomlCommitFilter> for CommitFilter {
 
 pub struct Commands {
     stop: Option<String>,
-    pull: String,
+    pull: Option<String>,
     init: Option<String>,
     update: Option<String>,
     start: Option<String>,
@@ -47,8 +47,8 @@ impl Commands {
     pub fn stop(&self) -> Option<&str> {
         self.stop.as_deref()
     }
-    pub fn pull(&self) -> &str {
-        &self.pull
+    pub fn pull(&self) -> Option<&str> {
+        self.pull.as_deref()
     }
     pub fn init(&self) -> Option<&str> {
         self.init.as_deref()
@@ -68,7 +68,7 @@ impl From<&TomlCommands> for Commands {
     fn from(t: &TomlCommands) -> Self {
         Self {
             stop: t.stop().map(str::to_owned),
-            pull: t.pull().to_owned(),
+            pull: t.pull().map(str::to_owned),
             init: t.init().map(str::to_owned),
             update: t.update().map(str::to_owned),
             start: t.start().map(str::to_owned),

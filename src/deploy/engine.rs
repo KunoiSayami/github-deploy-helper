@@ -1,12 +1,12 @@
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 use tracing::{error, info, warn};
 
+use crate::AppState;
 use crate::configure::Project;
 use crate::notify::telegram::NotifyEvent;
 use crate::webhook::payload::PushEvent;
-use crate::AppState;
 
 use super::filter::{branch_matches, commit_filter_passes};
 use super::runner;
@@ -150,13 +150,13 @@ impl DeployEngine {
                         return DeployOutcome::Aborted {
                             step: DeployStep::Stop,
                             reason: e.to_string(),
-                        }
+                        };
                     }
                     Ok(out) if !out.success => {
                         return DeployOutcome::Aborted {
                             step: DeployStep::Stop,
                             reason: format!("exit failure\nstderr: {}", out.stderr),
-                        }
+                        };
                     }
                     Ok(out) => {
                         info!(project = name, stdout = out.stdout.trim(), "stop completed");
@@ -165,23 +165,24 @@ impl DeployEngine {
             }
         }
 
-        let pull_cmd = p.commands().pull();
-        info!(project = name, cmd = pull_cmd, "running pull");
-        match runner::run(pull_cmd, cwd, timeout).await {
-            Err(e) => {
-                return DeployOutcome::Aborted {
-                    step: DeployStep::Pull,
-                    reason: e.to_string(),
+        if let Some(pull_cmd) = p.commands().pull() {
+            info!(project = name, cmd = pull_cmd, "running pull");
+            match runner::run(pull_cmd, cwd, timeout).await {
+                Err(e) => {
+                    return DeployOutcome::Aborted {
+                        step: DeployStep::Pull,
+                        reason: e.to_string(),
+                    };
                 }
-            }
-            Ok(out) if !out.success => {
-                return DeployOutcome::Aborted {
-                    step: DeployStep::Pull,
-                    reason: format!("exit failure\nstderr: {}", out.stderr),
+                Ok(out) if !out.success => {
+                    return DeployOutcome::Aborted {
+                        step: DeployStep::Pull,
+                        reason: format!("exit failure\nstderr: {}", out.stderr),
+                    };
                 }
-            }
-            Ok(out) => {
-                info!(project = name, stdout = out.stdout.trim(), "pull completed");
+                Ok(out) => {
+                    info!(project = name, stdout = out.stdout.trim(), "pull completed");
+                }
             }
         }
 
@@ -198,13 +199,13 @@ impl DeployEngine {
                         return DeployOutcome::Aborted {
                             step: DeployStep::Init,
                             reason: e.to_string(),
-                        }
+                        };
                     }
                     Ok(out) if !out.success => {
                         return DeployOutcome::Aborted {
                             step: DeployStep::Init,
                             reason: format!("exit failure\nstderr: {}", out.stderr),
-                        }
+                        };
                     }
                     Ok(out) => {
                         info!(project = name, stdout = out.stdout.trim(), "init completed");
@@ -223,13 +224,13 @@ impl DeployEngine {
                     return DeployOutcome::Aborted {
                         step: DeployStep::Update,
                         reason: e.to_string(),
-                    }
+                    };
                 }
                 Ok(out) if !out.success => {
                     return DeployOutcome::Aborted {
                         step: DeployStep::Update,
                         reason: format!("exit failure\nstderr: {}", out.stderr),
-                    }
+                    };
                 }
                 Ok(out) => {
                     info!(
@@ -249,13 +250,13 @@ impl DeployEngine {
                     return DeployOutcome::Aborted {
                         step: DeployStep::Restart,
                         reason: e.to_string(),
-                    }
+                    };
                 }
                 Ok(out) if !out.success => {
                     return DeployOutcome::Aborted {
                         step: DeployStep::Restart,
                         reason: format!("exit failure\nstderr: {}", out.stderr),
-                    }
+                    };
                 }
                 Ok(out) => {
                     info!(
@@ -272,13 +273,13 @@ impl DeployEngine {
                     return DeployOutcome::Aborted {
                         step: DeployStep::Start,
                         reason: e.to_string(),
-                    }
+                    };
                 }
                 Ok(out) if !out.success => {
                     return DeployOutcome::Aborted {
                         step: DeployStep::Start,
                         reason: format!("exit failure\nstderr: {}", out.stderr),
-                    }
+                    };
                 }
                 Ok(out) => {
                     info!(

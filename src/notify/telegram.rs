@@ -28,7 +28,9 @@ impl NotifyEvent {
                 reason,
             } => {
                 let escaped = html_escape(reason);
-                format!("❌ <b>{project}</b>: deploy failed at <code>{step}</code>\n<pre>{escaped}</pre>")
+                format!(
+                    "❌ <b>{project}</b>: deploy failed at <code>{step}</code>\n<pre>{escaped}</pre>"
+                )
             }
         }
     }
