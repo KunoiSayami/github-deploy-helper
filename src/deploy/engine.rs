@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 
 use tracing::{error, info, warn};
 
@@ -209,7 +208,7 @@ impl DeployEngine {
             }
         }
 
-        let is_first = p.first_deploy.load(Ordering::Acquire);
+        let is_first = !self.state.state.is_initialized(name).await;
         if is_first {
             if let Some(init_cmd) = p.commands().init() {
                 info!(
@@ -232,11 +231,13 @@ impl DeployEngine {
                     }
                     Ok(out) => {
                         info!(project = name, stdout = out.stdout.trim(), "init completed");
-                        p.first_deploy.store(false, Ordering::Release);
+                        if let Err(e) = self.state.state.mark_initialized(name).await {
+                            warn!(project = name, error = %e, "failed to persist init state");
+                        }
                     }
                 }
-            } else {
-                p.first_deploy.store(false, Ordering::Release);
+            } else if let Err(e) = self.state.state.mark_initialized(name).await {
+                warn!(project = name, error = %e, "failed to persist init state");
             }
         }
 

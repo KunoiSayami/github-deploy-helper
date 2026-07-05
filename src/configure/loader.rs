@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -127,6 +126,7 @@ pub struct Project {
     name: String,
     http_path: String,
     working_dir: String,
+    git_url: Option<String>,
     secret: String,
     branch: String,
     effective_timeout: Duration,
@@ -134,7 +134,6 @@ pub struct Project {
     commit_filter: Option<CommitFilter>,
     commands: Commands,
     auth: ProjectAuth,
-    pub first_deploy: Arc<AtomicBool>,
 }
 
 impl Project {
@@ -146,6 +145,10 @@ impl Project {
     }
     pub fn working_dir(&self) -> &str {
         &self.working_dir
+    }
+    /// Clone URL used to bootstrap `working_dir` if it doesn't exist yet.
+    pub fn git_url(&self) -> Option<&str> {
+        self.git_url.as_deref()
     }
     pub fn secret(&self) -> &str {
         &self.secret
@@ -194,6 +197,7 @@ pub struct Config {
     #[allow(dead_code)]
     default_timeout: Duration,
     log_keep_days: u64,
+    state_file: String,
     telegram: Option<TelegramConfig>,
     github_app: Option<GithubAppConfig>,
     projects: HashMap<String, Arc<Project>>,
@@ -212,6 +216,9 @@ impl Config {
     }
     pub fn log_keep_days(&self) -> u64 {
         self.log_keep_days
+    }
+    pub fn state_file(&self) -> &str {
+        &self.state_file
     }
     pub fn telegram(&self) -> Option<&TelegramConfig> {
         self.telegram.as_ref()
@@ -298,6 +305,7 @@ pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
             name: tp.name().to_owned(),
             http_path: http_path.clone(),
             working_dir: tp.working_dir().to_owned(),
+            git_url: tp.git_url().map(str::to_owned),
             secret: tp.secret().to_owned(),
             branch,
             effective_timeout,
@@ -305,7 +313,6 @@ pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
             commit_filter,
             commands: Commands::from(&commands),
             auth,
-            first_deploy: Arc::new(AtomicBool::new(true)),
         });
 
         projects.insert(http_path, project);
@@ -316,6 +323,7 @@ pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
         log_dir: toml.log_dir().to_owned(),
         default_timeout,
         log_keep_days: toml.log_keep_days(),
+        state_file: toml.state_file().to_owned(),
         telegram,
         github_app,
         projects,

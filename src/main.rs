@@ -21,6 +21,7 @@ mod configure;
 mod deploy;
 mod logging;
 mod notify;
+mod state;
 mod webhook;
 
 #[derive(Parser)]
@@ -51,6 +52,7 @@ pub struct AppState {
     pub notifier: Option<TelegramNotifier>,
     pub log_dir: PathBuf,
     pub github_app: Option<GithubAppAuth>,
+    pub state: state::SharedState,
 }
 
 /// Builds the EnvFilter used for logging: `default_level` when `RUST_LOG` is unset,
@@ -141,6 +143,25 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Loaded {} project(s)", config.projects().len());
 
+    let shared_state = state::SharedState::load(config.state_file())?;
+
+    for project in config.projects().values() {
+        if std::path::Path::new(project.working_dir()).exists() {
+            continue;
+        }
+        let Some(git_url) = project.git_url() else {
+            continue;
+        };
+        info!(
+            project = project.name(),
+            path = project.working_dir(),
+            "working_dir missing, cloning"
+        );
+        if let Err(e) = deploy::git::clone(git_url, project.working_dir(), project.branch()).await {
+            tracing::error!(project = project.name(), error = %e, "auto-clone failed");
+        }
+    }
+
     let notifier = config.telegram().map(|tg| {
         notify::telegram::start(
             tg.bot_token().to_owned(),
@@ -186,9 +207,9 @@ async fn main() -> anyhow::Result<()> {
 
     if args.force_init {
         for project in config.projects().values() {
-            project
-                .first_deploy
-                .store(true, std::sync::atomic::Ordering::Relaxed);
+            if let Err(e) = shared_state.clear_initialized(project.name()).await {
+                tracing::warn!(project = project.name(), error = %e, "failed to persist force_init state");
+            }
         }
         info!("force_init: all projects will re-run init on next deploy");
     }
@@ -205,6 +226,7 @@ async fn main() -> anyhow::Result<()> {
         notifier,
         github_app,
         log_dir,
+        state: shared_state,
     });
 
     let mut router = Router::new();

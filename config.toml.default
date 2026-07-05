@@ -2,6 +2,7 @@ bind            = "0.0.0.0:9000"
 log_dir         = "logs"
 default_timeout = 30
 log_keep_days   = 30   # delete log files older than this many days (0 = keep forever)
+# state_file      = "state.json"   # tracks which projects have completed their init step
 
 [telegram]
 bot_token  = "123456:ABC-your-bot-token-here"
@@ -16,6 +17,7 @@ send_to    = [-100123456789]
 [[projects]]
 name        = "my-api"
 working_dir = "/srv/my-api"
+# git_url     = "git@github.com:my-org/my-api.git"   # only used to clone working_dir if it doesn't exist yet
 secret      = "your-webhook-secret-here"
 branch      = "main"
 timeout     = 60

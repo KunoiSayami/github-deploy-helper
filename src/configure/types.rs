@@ -7,6 +7,7 @@ pub struct TomlConfig {
     log_dir: String,
     default_timeout: Option<u64>,
     log_keep_days: Option<u64>,
+    state_file: Option<String>,
     telegram: Option<TomlTelegram>,
     github_app: Option<TomlGithubApp>,
     projects: Vec<TomlProject>,
@@ -24,6 +25,9 @@ impl TomlConfig {
     }
     pub fn log_keep_days(&self) -> u64 {
         self.log_keep_days.unwrap_or(30)
+    }
+    pub fn state_file(&self) -> &str {
+        self.state_file.as_deref().unwrap_or("state.json")
     }
     pub fn telegram(&self) -> Option<&TomlTelegram> {
         self.telegram.as_ref()
@@ -78,6 +82,7 @@ impl TomlTelegram {
 pub struct TomlProject {
     name: String,
     working_dir: String,
+    git_url: Option<String>,
     secret: String,
     branch: String,
     timeout: Option<u64>,
@@ -94,6 +99,10 @@ impl TomlProject {
     }
     pub fn working_dir(&self) -> &str {
         &self.working_dir
+    }
+    /// Clone URL used to bootstrap `working_dir` if it doesn't exist yet.
+    pub fn git_url(&self) -> Option<&str> {
+        self.git_url.as_deref()
     }
     pub fn secret(&self) -> &str {
         &self.secret
