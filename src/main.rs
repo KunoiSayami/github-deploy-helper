@@ -115,6 +115,28 @@ async fn main() -> anyhow::Result<()> {
         })
         .transpose()?;
 
+    if let (Some(app), Some(base_url)) = (
+        github_app.as_ref(),
+        config.github_app().and_then(|g| g.public_base_url()),
+    ) {
+        for project in config.projects().values() {
+            if let configure::ProjectAuth::GithubApp { owner, repo } = project.auth() {
+                let webhook_url =
+                    format!("{}{}", base_url.trim_end_matches('/'), project.http_path());
+                if let Err(e) = app
+                    .ensure_webhook(owner, repo, &webhook_url, project.secret())
+                    .await
+                {
+                    tracing::warn!(
+                        project = project.name(),
+                        error = %e,
+                        "failed to auto-configure GitHub webhook"
+                    );
+                }
+            }
+        }
+    }
+
     if args.force_init {
         for project in config.projects().values() {
             project

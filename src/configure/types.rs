@@ -40,6 +40,7 @@ impl TomlConfig {
 pub struct TomlGithubApp {
     app_id: u64,
     private_key_path: String,
+    public_base_url: Option<String>,
 }
 
 impl TomlGithubApp {
@@ -48,6 +49,9 @@ impl TomlGithubApp {
     }
     pub fn private_key_path(&self) -> &str {
         &self.private_key_path
+    }
+    pub fn public_base_url(&self) -> Option<&str> {
+        self.public_base_url.as_deref()
     }
 }
 

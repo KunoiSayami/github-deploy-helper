@@ -108,6 +108,7 @@ impl TryFrom<&TomlProjectAuth> for ProjectAuth {
 pub struct GithubAppConfig {
     app_id: u64,
     private_key_path: String,
+    public_base_url: Option<String>,
 }
 
 impl GithubAppConfig {
@@ -116,6 +117,9 @@ impl GithubAppConfig {
     }
     pub fn private_key_path(&self) -> &str {
         &self.private_key_path
+    }
+    pub fn public_base_url(&self) -> Option<&str> {
+        self.public_base_url.as_deref()
     }
 }
 
@@ -236,6 +240,7 @@ pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
     let github_app = toml.github_app().map(|g| GithubAppConfig {
         app_id: g.app_id(),
         private_key_path: g.private_key_path().to_owned(),
+        public_base_url: g.public_base_url().map(str::to_owned),
     });
 
     let mut projects = HashMap::new();

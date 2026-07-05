@@ -116,6 +116,7 @@ As an alternative, a project can authenticate via a GitHub App installation inst
 
 1. **Register a GitHub App** (Settings → Developer settings → GitHub Apps → New GitHub App, either under your personal account or an org):
    - Permissions: **Repository permissions → Contents: Read-only** is sufficient for pulling.
+   - Permissions: **Repository permissions → Webhooks: Read and write** — only needed if you want the server to auto-create the repo's webhook (see `public_base_url` below); skip it if you'll configure webhooks manually.
    - Generate a **private key** (downloads a `.pem` file) and note the **App ID**.
    - **Install** the App on each org/account whose repos you want to deploy — you can install the same App into multiple orgs; each installation is scoped to the repos you select there.
 
@@ -125,6 +126,10 @@ As an alternative, a project can authenticate via a GitHub App installation inst
    [github_app]
    app_id           = 123456
    private_key_path = "/etc/github-deploy-helper/app-private-key.pem"
+   # Optional: if set, the server auto-creates a `push` webhook on each github_app-authenticated
+   # project's repo at startup, pointed at "<public_base_url><project webhook path>". Requires the
+   # App's "Webhooks" permission (see above). Omit this to configure webhooks manually instead.
+   public_base_url = "https://deploy.example.com"
    ```
 
 3. **Opt a project in** by adding `[projects.auth]`:
