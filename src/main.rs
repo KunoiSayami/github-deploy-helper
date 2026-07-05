@@ -127,6 +127,13 @@ fn init_tracing(log_dir: &Path, verbose: u8) -> Vec<WorkerGuard> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Multiple dependencies (reqwest, teloxide) link in both the aws-lc-rs and ring
+    // rustls crypto backends, so no default provider gets installed automatically.
+    // Pin one explicitly before any TLS handshake or JWT signing happens.
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .expect("failed to install rustls CryptoProvider");
+
     let args = Args::parse();
 
     let config = configure::load(&args.config)?;
@@ -144,23 +151,6 @@ async fn main() -> anyhow::Result<()> {
     info!("Loaded {} project(s)", config.projects().len());
 
     let shared_state = state::SharedState::load(config.state_file())?;
-
-    for project in config.projects().values() {
-        if std::path::Path::new(project.working_dir()).exists() {
-            continue;
-        }
-        let Some(git_url) = project.git_url() else {
-            continue;
-        };
-        info!(
-            project = project.name(),
-            path = project.working_dir(),
-            "working_dir missing, cloning"
-        );
-        if let Err(e) = deploy::git::clone(git_url, project.working_dir(), project.branch()).await {
-            tracing::error!(project = project.name(), error = %e, "auto-clone failed");
-        }
-    }
 
     let notifier = config.telegram().map(|tg| {
         notify::telegram::start(
@@ -182,6 +172,51 @@ async fn main() -> anyhow::Result<()> {
             GithubAppAuth::new(g.app_id(), &private_key)
         })
         .transpose()?;
+
+    for project in config.projects().values() {
+        if std::path::Path::new(project.working_dir()).exists() {
+            continue;
+        }
+        let Some(git_url) = project.git_url() else {
+            continue;
+        };
+
+        let gh_token = match project.auth() {
+            configure::ProjectAuth::GithubApp { owner, repo } => {
+                let Some(app) = github_app.as_ref() else {
+                    tracing::error!(
+                        project = project.name(),
+                        "cannot auto-clone: auth.mode = \"github_app\" but no [github_app] config is present"
+                    );
+                    continue;
+                };
+                match app.get_token(owner, repo).await {
+                    Ok(token) => Some(token),
+                    Err(e) => {
+                        tracing::error!(project = project.name(), error = %e, "auto-clone: failed to obtain GitHub App token");
+                        continue;
+                    }
+                }
+            }
+            configure::ProjectAuth::Ssh => None,
+        };
+
+        info!(
+            project = project.name(),
+            path = project.working_dir(),
+            "working_dir missing, cloning"
+        );
+        if let Err(e) = deploy::git::clone(
+            git_url,
+            project.working_dir(),
+            project.branch(),
+            gh_token.as_deref(),
+        )
+        .await
+        {
+            tracing::error!(project = project.name(), error = %e, "auto-clone failed");
+        }
+    }
 
     if let (Some(app), Some(base_url)) = (
         github_app.as_ref(),

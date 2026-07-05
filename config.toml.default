@@ -62,3 +62,5 @@ pull = "git pull origin main"
 #
 # [projects.commands]
 # pull = "git -c http.extraHeader=\"AUTHORIZATION: basic $(printf 'x-access-token:%s' \"$GH_TOKEN\" | base64 -w0)\" fetch origin && git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)"
+#
+# git_url = "https://github.com/my-org/app-authed-service.git"   # auto-clone also uses the GitHub App token for this auth mode

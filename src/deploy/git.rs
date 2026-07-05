@@ -1,11 +1,32 @@
-pub async fn clone(git_url: &str, working_dir: &str, branch: &str) -> anyhow::Result<()> {
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
+
+/// Clones `git_url` into `working_dir` at `branch`. If `gh_token` is set, it is sent as
+/// a GitHub App installation token via `http.extraHeader` rather than embedded in the
+/// URL or passed as a plain argv argument, so it never appears in process listings.
+pub async fn clone(
+    git_url: &str,
+    working_dir: &str,
+    branch: &str,
+    gh_token: Option<&str>,
+) -> anyhow::Result<()> {
     if let Some(parent) = std::path::Path::new(working_dir).parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent)?;
         }
     }
 
-    let out = tokio::process::Command::new("git")
+    let mut command = tokio::process::Command::new("git");
+
+    if let Some(token) = gh_token {
+        let basic = BASE64.encode(format!("x-access-token:{token}"));
+        command.args([
+            "-c",
+            &format!("http.extraHeader=AUTHORIZATION: basic {basic}"),
+        ]);
+    }
+
+    let out = command
         .args(["clone", "--branch", branch, git_url, working_dir])
         .output()
         .await?;
