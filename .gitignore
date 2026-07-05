@@ -9,5 +9,5 @@ target/
 .idea/
 .vscode/
 
-data/*
-!data/*.default
+config.toml
+*.pem

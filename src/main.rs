@@ -27,7 +27,7 @@ mod webhook;
 #[command(name = "github-deploy-helper", version)]
 struct Args {
     /// Path to config file
-    #[arg(short, long, default_value = "data/config.toml")]
+    #[arg(short, long, default_value = "config.toml")]
     config: PathBuf,
 
     /// Allow concurrent deploys per project (disables per-project locking)
@@ -37,6 +37,11 @@ struct Args {
     /// Re-run init command on the next deploy for all projects
     #[arg(long)]
     force_init: bool,
+
+    /// Increase logging verbosity (repeatable), unmuting noisier dependency
+    /// targets (h2, hyper_util, rustls, ...) at each step.
+    #[arg(short, long, action = clap::ArgAction::Count)]
+    verbose: u8,
 }
 
 pub struct AppState {
@@ -48,15 +53,57 @@ pub struct AppState {
     pub github_app: Option<GithubAppAuth>,
 }
 
-fn init_tracing(log_dir: &Path) -> Vec<WorkerGuard> {
+/// Builds the EnvFilter used for logging: `default_level` when `RUST_LOG` is unset,
+/// with noisy dependency targets progressively unmuted as `verbose` increases.
+fn build_env_filter(verbose: u8, default_level: &str) -> EnvFilter {
+    let mut filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_level));
+
+    if verbose < 5 {
+        filter = filter.add_directive("quinn_proto::connection=warn".parse().unwrap());
+    }
+    if verbose < 4 {
+        filter = filter
+            .add_directive("h2::proto=warn".parse().unwrap())
+            .add_directive("rustls::client=warn".parse().unwrap())
+            .add_directive("quinn_proto=warn".parse().unwrap())
+            .add_directive("rustls_platform_verifier=warn".parse().unwrap());
+    }
+    if verbose < 3 {
+        filter = filter
+            .add_directive("h2::codec=warn".parse().unwrap())
+            .add_directive("h2::hpack=warn".parse().unwrap())
+            .add_directive("h2::client=warn".parse().unwrap());
+    }
+    if verbose < 2 {
+        filter = filter
+            .add_directive("hyper_util::client=warn".parse().unwrap())
+            .add_directive("hickory_proto=warn".parse().unwrap())
+            .add_directive("rustls=warn".parse().unwrap())
+            .add_directive("h2::frame=warn".parse().unwrap());
+    }
+    if verbose < 1 {
+        filter = filter.add_directive("reqwest::connect=warn".parse().unwrap());
+    }
+
+    filter
+}
+
+fn init_tracing(log_dir: &Path, verbose: u8) -> Vec<WorkerGuard> {
     use tracing_subscriber::prelude::*;
 
     let mut guards = Vec::new();
 
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("github_deploy_helper=info"));
+    let env_filter = build_env_filter(verbose, "github_deploy_helper=info");
 
-    let console_layer = tracing_subscriber::fmt::layer().with_filter(env_filter);
+    // journald already timestamps each line, so drop tracing's own timestamp under systemd
+    let under_systemd = std::env::var_os("JOURNAL_STREAM").is_some();
+    let console_layer = if under_systemd {
+        tracing_subscriber::fmt::layer().without_time().boxed()
+    } else {
+        tracing_subscriber::fmt::layer().boxed()
+    }
+    .with_filter(env_filter);
 
     if let Err(e) = std::fs::create_dir_all(log_dir) {
         eprintln!("Warning: cannot create log dir: {e}");
@@ -84,7 +131,7 @@ async fn main() -> anyhow::Result<()> {
 
     let log_dir = PathBuf::from(config.log_dir());
     let log_keep_days = config.log_keep_days();
-    let _guards = init_tracing(&log_dir);
+    let _guards = init_tracing(&log_dir, args.verbose);
 
     logging::cleaner::clean_old_logs(&log_dir, log_keep_days);
     tokio::spawn(logging::cleaner::start_cleaner(
