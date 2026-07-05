@@ -10,7 +10,7 @@ A lightweight Rust server that listens for GitHub push webhooks and runs deploym
 - **Branch and commit filters** — include/exclude deploys by branch or changed file globs
 - **Per-project `deploy.toml`** — override commands and settings per repo without touching the main config
 - **Deployment locking** — only one deploy per project at a time (disable with `--no-lock`)
-- **Telegram notifications** — notified on deploy start, success, and failure
+- **Telegram notifications** — notified on deploy start (with a commit summary), success, and failure
 - **Log rolling and cleanup** — daily rolling deploy log with configurable retention
 - **GitHub App authentication** — optional per-project alternative to SSH deploy keys for the `pull` step
 
@@ -48,6 +48,12 @@ send_to    = [-100123456789]       # chat ID — integer, string, or array
 ```
 
 Omit the `[telegram]` section entirely to disable notifications.
+
+Three events are sent per deploy:
+
+- **Started** — includes a commit summary (linked commit IDs and first line of each message, or a linked "N new commits" comparison for multi-commit pushes)
+- **Succeeded**
+- **Failed** — includes the failing step and its output
 
 ### Projects
 

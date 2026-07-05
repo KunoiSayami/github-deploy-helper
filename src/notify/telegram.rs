@@ -6,6 +6,7 @@ use tracing::{error, warn};
 pub enum NotifyEvent {
     Started {
         project: String,
+        commit_summary: Option<String>,
     },
     Success {
         project: String,
@@ -20,7 +21,13 @@ pub enum NotifyEvent {
 impl NotifyEvent {
     fn message(&self) -> String {
         match self {
-            Self::Started { project } => format!("🚀 <b>{project}</b>: deploy started"),
+            Self::Started {
+                project,
+                commit_summary,
+            } => match commit_summary {
+                Some(summary) => format!("🚀 <b>{project}</b>: deploy started\n\n{summary}"),
+                None => format!("🚀 <b>{project}</b>: deploy started"),
+            },
             Self::Success { project } => format!("✅ <b>{project}</b>: deploy succeeded"),
             Self::Failed {
                 project,

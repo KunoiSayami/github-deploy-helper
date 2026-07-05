@@ -80,6 +80,8 @@ impl DeployEngine {
             notifier
                 .send(NotifyEvent::Started {
                     project: name.to_owned(),
+                    commit_summary: (!event.commits().is_empty())
+                        .then(|| event.render_commit_summary()),
                 })
                 .await;
         }
