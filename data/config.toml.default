@@ -32,7 +32,7 @@ init   = "cargo build --release"
 update = "cargo build --release"
 start  = "systemctl start my-api"
 # restart = "systemctl restart my-api"
-# pull  = "git pull --ff-only"
+# pull  = "git fetch origin && git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)"
 # no_pull = true   # skip the pull step entirely (webhook-only mode)
 
 [[projects]]
@@ -59,4 +59,4 @@ pull = "git pull origin main"
 # repo  = "app-authed-service"
 #
 # [projects.commands]
-# pull = "git -c http.extraHeader=\"AUTHORIZATION: basic $(printf 'x-access-token:%s' \"$GH_TOKEN\" | base64 -w0)\" pull --ff-only"
+# pull = "git -c http.extraHeader=\"AUTHORIZATION: basic $(printf 'x-access-token:%s' \"$GH_TOKEN\" | base64 -w0)\" fetch origin && git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)"

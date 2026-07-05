@@ -198,7 +198,9 @@ impl TomlCommands {
         if self.no_pull.unwrap_or(false) {
             return None;
         }
-        Some(self.pull.as_deref().unwrap_or("git pull --ff-only"))
+        Some(self.pull.as_deref().unwrap_or(
+            "git fetch origin && git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)",
+        ))
     }
     pub fn init(&self) -> Option<&str> {
         self.init.as_deref()

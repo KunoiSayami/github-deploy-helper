@@ -730,7 +730,7 @@ dependencies = [
 
 [[package]]
 name = "github-deploy-helper"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "axum",

@@ -80,7 +80,7 @@ init    = "cargo build --release"  # runs only on the first deploy (or after --f
 update  = "cargo build --release"  # runs on every deploy
 start   = "systemctl start my-api"
 # restart = "systemctl restart my-api"   # if set, replaces stop + start
-# pull    = "git pull --ff-only"         # default; override if needed
+# pull    = "git fetch origin && git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)"  # default; override if needed
 # no_pull = true                         # if true, skip the pull step entirely (webhook-only mode)
 ```
 
@@ -147,7 +147,7 @@ As an alternative, a project can authenticate via a GitHub App installation inst
 
    ```toml
    [projects.commands]
-   pull = "git -c http.extraHeader=\"AUTHORIZATION: basic $(printf 'x-access-token:%s' \"$GH_TOKEN\" | base64 -w0)\" pull --ff-only"
+   pull = "git -c http.extraHeader=\"AUTHORIZATION: basic $(printf 'x-access-token:%s' \"$GH_TOKEN\" | base64 -w0)\" fetch origin && git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)"
    ```
 
    This requires the repo's `origin` remote to use an `https://github.com/...` URL rather than `git@github.com:...`.
@@ -160,7 +160,7 @@ For each qualifying push:
 
 ```
 stop              ← optional; skipped if restart is set
-git pull          ← runs by default (git pull --ff-only); skipped entirely if no_pull = true
+git pull          ← runs by default (fetch + hard reset to origin, survives force-pushes); skipped entirely if no_pull = true
 init              ← only on first deploy, or after --force-init
 update            ← runs on every deploy
 start             ← optional; skipped if restart is set
