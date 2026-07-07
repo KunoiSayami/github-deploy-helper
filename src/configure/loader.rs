@@ -67,12 +67,12 @@ impl Commands {
 impl From<&TomlCommands> for Commands {
     fn from(t: &TomlCommands) -> Self {
         Self {
-            stop: t.stop().map(str::to_owned),
-            pull: t.pull().map(str::to_owned),
-            init: t.init().map(str::to_owned),
-            update: t.update().map(str::to_owned),
-            start: t.start().map(str::to_owned),
-            restart: t.restart().map(str::to_owned),
+            stop: t.stop(),
+            pull: t.pull(),
+            init: t.init(),
+            update: t.update(),
+            start: t.start(),
+            restart: t.restart(),
         }
     }
 }
@@ -198,6 +198,7 @@ pub struct Config {
     default_timeout: Duration,
     log_keep_days: u64,
     state_file: String,
+    shell: String,
     telegram: Option<TelegramConfig>,
     github_app: Option<GithubAppConfig>,
     projects: HashMap<String, Arc<Project>>,
@@ -219,6 +220,9 @@ impl Config {
     }
     pub fn state_file(&self) -> &str {
         &self.state_file
+    }
+    pub fn shell(&self) -> &str {
+        &self.shell
     }
     pub fn telegram(&self) -> Option<&TelegramConfig> {
         self.telegram.as_ref()
@@ -324,6 +328,7 @@ pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
         default_timeout,
         log_keep_days: toml.log_keep_days(),
         state_file: toml.state_file().to_owned(),
+        shell: toml.shell().to_owned(),
         telegram,
         github_app,
         projects,

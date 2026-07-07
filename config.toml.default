@@ -3,6 +3,7 @@ log_dir         = "logs"
 default_timeout = 30
 log_keep_days   = 30   # delete log files older than this many days (0 = keep forever)
 # state_file      = "state.json"   # tracks which projects have completed their init step
+# shell           = "bash"   # interpreter used to run every project command (default: "sh")
 
 [telegram]
 bot_token  = "123456:ABC-your-bot-token-here"
@@ -13,6 +14,7 @@ send_to    = [-100123456789]
 # [github_app]
 # app_id           = 123456
 # private_key_path = "/etc/github-deploy-helper/app-private-key.pem"
+# public_base_url = "https://deploy.example.com"
 
 [[projects]]
 name        = "my-api"
@@ -31,8 +33,9 @@ globs = ["docs/**", "*.md", "*.txt"]
 [projects.commands]
 stop   = "systemctl stop my-api"
 init   = "cargo build --release"
-update = "cargo build --release"
+update = "@init"   # reuse the init command instead of repeating it
 start  = "systemctl start my-api"
+# restart = "@init && @start"   # references can also be combined inline with other text
 # restart = "systemctl restart my-api"
 # pull  = "git fetch origin && git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)"
 # no_pull = true   # skip the pull step entirely (webhook-only mode)
@@ -51,6 +54,7 @@ pull = "git pull origin main"
 # SSH deploy key (requires the [github_app] block above and an https:// origin remote).
 # [[projects]]
 # name        = "app-authed-service"
+# git_url = "https://github.com/my-org/app-authed-service.git"   # auto-clone also uses the GitHub App token for this auth mode
 # working_dir = "/srv/app-authed-service"
 # secret      = "yet-another-secret"
 # branch      = "main"
@@ -63,4 +67,3 @@ pull = "git pull origin main"
 # [projects.commands]
 # pull = "git -c http.extraHeader=\"AUTHORIZATION: basic $(printf 'x-access-token:%s' \"$GH_TOKEN\" | base64 -w0)\" fetch origin && git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)"
 #
-# git_url = "https://github.com/my-org/app-authed-service.git"   # auto-clone also uses the GitHub App token for this auth mode

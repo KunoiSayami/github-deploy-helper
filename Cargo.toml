@@ -1,6 +1,6 @@
 [package]
 name = "github-deploy-helper"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 
 [dependencies]
@@ -21,13 +21,18 @@ tracing-appender = "0.2"
 dashmap = "6"
 glob = "0.3"
 teloxide = { version = "0.17", default-features = false, features = ["rustls"] }
-jsonwebtoken = { version = "10", default-features = false, features = ["aws_lc_rs", "use_pem"] }
+jsonwebtoken = { version = "10", default-features = false, features = [
+    "aws_lc_rs",
+    "use_pem",
+] }
 reqwest = { version = "0.13", default-features = false, features = [
     "rustls",
     "json",
     "socks",
 ] }
-rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs"] }
+rustls = { version = "0.23", default-features = false, features = [
+    "aws_lc_rs",
+] }
 
 [profile.release]
 lto = true

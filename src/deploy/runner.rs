@@ -10,7 +10,7 @@ pub struct CommandOutput {
 }
 
 /// Runs a shell command in `working_dir` with a `timeout`.
-/// The command string is passed to `sh -c`. `extra_env`, if set, is passed via the
+/// The command string is passed to `<shell> -c`. `extra_env`, if set, is passed via the
 /// process environment rather than interpolated into the command string, so secrets
 /// (e.g. a GitHub App installation token) never appear in argv/process listings.
 pub async fn run(
@@ -18,8 +18,9 @@ pub async fn run(
     working_dir: &str,
     timeout: Duration,
     extra_env: Option<(&str, &str)>,
+    shell: &str,
 ) -> anyhow::Result<CommandOutput> {
-    let mut command = Command::new("sh");
+    let mut command = Command::new(shell);
     command
         .args(["-c", cmd])
         .current_dir(working_dir)

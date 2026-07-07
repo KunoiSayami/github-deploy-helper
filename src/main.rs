@@ -53,6 +53,7 @@ pub struct AppState {
     pub log_dir: PathBuf,
     pub github_app: Option<GithubAppAuth>,
     pub state: state::SharedState,
+    pub shell: String,
 }
 
 /// Builds the EnvFilter used for logging: `default_level` when `RUST_LOG` is unset,
@@ -262,6 +263,7 @@ async fn main() -> anyhow::Result<()> {
         github_app,
         log_dir,
         state: shared_state,
+        shell: config.shell().to_owned(),
     });
 
     let mut router = Router::new();
