@@ -1,6 +1,13 @@
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 
+/// Builds the `http.extraHeader` config value for a GitHub App installation token,
+/// suitable for `git -c http.extraHeader=<value>` or the `GIT_CONFIG_VALUE_n` env var.
+pub fn basic_auth_header_value(token: &str) -> String {
+    let basic = BASE64.encode(format!("x-access-token:{token}"));
+    format!("AUTHORIZATION: basic {basic}")
+}
+
 /// Clones `git_url` into `working_dir` at `branch`. If `gh_token` is set, it is sent as
 /// a GitHub App installation token via `http.extraHeader` rather than embedded in the
 /// URL or passed as a plain argv argument, so it never appears in process listings.
@@ -19,10 +26,9 @@ pub async fn clone(
     let mut command = tokio::process::Command::new("git");
 
     if let Some(token) = gh_token {
-        let basic = BASE64.encode(format!("x-access-token:{token}"));
         command.args([
             "-c",
-            &format!("http.extraHeader=AUTHORIZATION: basic {basic}"),
+            &format!("http.extraHeader={}", basic_auth_header_value(token)),
         ]);
     }
 

@@ -13,11 +13,16 @@ pub struct CommandOutput {
 /// The command string is passed to `<shell> -c`. `extra_env`, if set, is passed via the
 /// process environment rather than interpolated into the command string, so secrets
 /// (e.g. a GitHub App installation token) never appear in argv/process listings.
+/// `extra_git_config`, if set, is exposed via `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`/
+/// `GIT_CONFIG_VALUE_n`, which any `git` invocation inside `cmd` picks up automatically
+/// (equivalent to passing `-c <key>=<value>` to every git subcommand, without the caller
+/// having to hand-write that into their pull command).
 pub async fn run(
     cmd: &str,
     working_dir: &str,
     timeout: Duration,
     extra_env: Option<(&str, &str)>,
+    extra_git_config: Option<(&str, &str)>,
     shell: &str,
 ) -> anyhow::Result<CommandOutput> {
     let mut command = Command::new(shell);
@@ -28,6 +33,12 @@ pub async fn run(
         .stderr(std::process::Stdio::piped());
     if let Some((key, value)) = extra_env {
         command.env(key, value);
+    }
+    if let Some((key, value)) = extra_git_config {
+        command
+            .env("GIT_CONFIG_COUNT", "1")
+            .env("GIT_CONFIG_KEY_0", key)
+            .env("GIT_CONFIG_VALUE_0", value);
     }
     let child = command
         .spawn()

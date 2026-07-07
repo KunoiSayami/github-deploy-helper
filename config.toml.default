@@ -52,6 +52,9 @@ pull = "git pull origin main"
 
 # Example: authenticate the pull step via a GitHub App installation instead of an
 # SSH deploy key (requires the [github_app] block above and an https:// origin remote).
+# The GitHub App token is injected automatically as an `http.extraHeader` for any `git`
+# invocation in the pull command (via GIT_CONFIG_KEY/VALUE env vars) - no need to
+# reference $GH_TOKEN or write the header yourself; plain git commands just work.
 # [[projects]]
 # name        = "app-authed-service"
 # git_url = "https://github.com/my-org/app-authed-service.git"   # auto-clone also uses the GitHub App token for this auth mode
@@ -65,5 +68,5 @@ pull = "git pull origin main"
 # repo  = "app-authed-service"
 #
 # [projects.commands]
-# pull = "git -c http.extraHeader=\"AUTHORIZATION: basic $(printf 'x-access-token:%s' \"$GH_TOKEN\" | base64 -w0)\" fetch origin && git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)"
+# pull = "git fetch origin && git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)"
 #

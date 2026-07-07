@@ -147,7 +147,7 @@ impl DeployEngine {
         if !use_restart {
             if let Some(stop_cmd) = p.commands().stop() {
                 info!(project = name, cmd = stop_cmd, "running stop");
-                match runner::run(stop_cmd, cwd, timeout, None, shell).await {
+                match runner::run(stop_cmd, cwd, timeout, None, None, shell).await {
                     Err(e) => {
                         return DeployOutcome::Aborted {
                             step: DeployStep::Stop,
@@ -188,9 +188,11 @@ impl DeployEngine {
                 ProjectAuth::Ssh => None,
             };
             let extra_env = gh_token.as_deref().map(|t| ("GH_TOKEN", t));
+            let auth_header = gh_token.as_deref().map(super::git::basic_auth_header_value);
+            let extra_git_config = auth_header.as_deref().map(|v| ("http.extraHeader", v));
 
             info!(project = name, cmd = pull_cmd, "running pull");
-            match runner::run(pull_cmd, cwd, timeout, extra_env, shell).await {
+            match runner::run(pull_cmd, cwd, timeout, extra_env, extra_git_config, shell).await {
                 Err(e) => {
                     return DeployOutcome::Aborted {
                         step: DeployStep::Pull,
@@ -217,7 +219,7 @@ impl DeployEngine {
                     cmd = init_cmd,
                     "running init (first deploy)"
                 );
-                match runner::run(init_cmd, cwd, timeout, None, shell).await {
+                match runner::run(init_cmd, cwd, timeout, None, None, shell).await {
                     Err(e) => {
                         return DeployOutcome::Aborted {
                             step: DeployStep::Init,
@@ -244,7 +246,7 @@ impl DeployEngine {
 
         if let Some(update_cmd) = p.commands().update() {
             info!(project = name, cmd = update_cmd, "running update");
-            match runner::run(update_cmd, cwd, timeout, None, shell).await {
+            match runner::run(update_cmd, cwd, timeout, None, None, shell).await {
                 Err(e) => {
                     return DeployOutcome::Aborted {
                         step: DeployStep::Update,
@@ -270,7 +272,7 @@ impl DeployEngine {
         if use_restart {
             let restart_cmd = p.commands().restart().unwrap();
             info!(project = name, cmd = restart_cmd, "running restart");
-            match runner::run(restart_cmd, cwd, timeout, None, shell).await {
+            match runner::run(restart_cmd, cwd, timeout, None, None, shell).await {
                 Err(e) => {
                     return DeployOutcome::Aborted {
                         step: DeployStep::Restart,
@@ -293,7 +295,7 @@ impl DeployEngine {
             }
         } else if let Some(start_cmd) = p.commands().start() {
             info!(project = name, cmd = start_cmd, "running start");
-            match runner::run(start_cmd, cwd, timeout, None, shell).await {
+            match runner::run(start_cmd, cwd, timeout, None, None, shell).await {
                 Err(e) => {
                     return DeployOutcome::Aborted {
                         step: DeployStep::Start,
