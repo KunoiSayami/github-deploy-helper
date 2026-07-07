@@ -102,6 +102,9 @@ impl CommitInfo {
     pub fn url(&self) -> &str {
         &self.url
     }
+    pub fn message(&self) -> &str {
+        &self.message
+    }
     pub fn all_files(&self) -> impl Iterator<Item = &str> {
         self.added
             .iter()

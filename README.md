@@ -7,7 +7,7 @@ A lightweight Rust server that listens for GitHub push webhooks and runs deploym
 - **HMAC-SHA256 verification** — rejects any request not signed by GitHub
 - **Multi-project** — each project gets its own URL path (`/webhook/<name>`)
 - **Deployment pipeline** — `stop → git pull → init (first deploy) → update → start`
-- **Branch and commit filters** — include/exclude deploys by branch or changed file globs
+- **Branch and commit filters** — include/exclude deploys by branch, changed file globs, or commit message regex
 - **Per-project `deploy.toml`** — override commands and settings per repo without touching the main config
 - **Deployment locking** — only one deploy per project at a time (disable with `--no-lock`)
 - **Telegram notifications** — notified on deploy start (with a commit summary), success, and failure
@@ -70,9 +70,10 @@ bypass      = false                # if true, return 200 but skip the deploy
 deploy_toml = false                # if true, also load working_dir/deploy.toml for overrides
 
 [projects.commit_filter]           # optional
-mode  = "exclude"                  # "include" — only deploy if a commit touches these paths
-                                   # "exclude" — skip deploy if all commits only touch these paths
+mode  = "exclude"                  # "include" — only deploy if a commit touches these paths, or a commit message matches message_patterns
+                                   # "exclude" — skip deploy only if every changed file matches globs, or every commit message matches message_patterns
 globs = ["docs/**", "*.md"]
+# message_patterns = ["^chore:", "\\[skip deploy\\]"]   # optional; regex, matched against each commit message
 
 [projects.commands]
 stop    = "systemctl stop my-api"
@@ -96,6 +97,7 @@ timeout = 120
 [commit_filter]
 mode  = "exclude"
 globs = ["docs/**", "*.md"]
+# message_patterns = ["^chore:", "\\[skip deploy\\]"]
 
 [commands]
 stop   = "systemctl stop my-api"

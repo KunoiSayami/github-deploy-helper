@@ -173,7 +173,10 @@ pub enum TomlAuthMode {
 #[derive(Deserialize, Clone)]
 pub struct TomlCommitFilter {
     mode: FilterMode,
+    #[serde(default)]
     globs: Vec<String>,
+    #[serde(default)]
+    message_patterns: Vec<String>,
 }
 
 impl TomlCommitFilter {
@@ -182,6 +185,9 @@ impl TomlCommitFilter {
     }
     pub fn globs(&self) -> &[String] {
         &self.globs
+    }
+    pub fn message_patterns(&self) -> &[String] {
+        &self.message_patterns
     }
 }
 

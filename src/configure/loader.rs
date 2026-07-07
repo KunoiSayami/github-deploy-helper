@@ -14,6 +14,7 @@ use super::types::{
 pub struct CommitFilter {
     mode: FilterMode,
     globs: Vec<String>,
+    message_patterns: Vec<String>,
 }
 
 impl CommitFilter {
@@ -23,6 +24,9 @@ impl CommitFilter {
     pub fn globs(&self) -> &[String] {
         &self.globs
     }
+    pub fn message_patterns(&self) -> &[String] {
+        &self.message_patterns
+    }
 }
 
 impl From<&TomlCommitFilter> for CommitFilter {
@@ -30,6 +34,7 @@ impl From<&TomlCommitFilter> for CommitFilter {
         Self {
             mode: t.mode(),
             globs: t.globs().to_vec(),
+            message_patterns: t.message_patterns().to_vec(),
         }
     }
 }

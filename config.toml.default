@@ -29,6 +29,7 @@ deploy_toml = false
 [projects.commit_filter]
 mode  = "exclude"
 globs = ["docs/**", "*.md", "*.txt"]
+# message_patterns = ["^chore:", "\\[skip deploy\\]"]   # regex; matched against each commit message
 
 [projects.commands]
 stop   = "systemctl stop my-api"
