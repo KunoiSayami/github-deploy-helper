@@ -11,6 +11,7 @@ use crate::logging::project_log::ProjectLog;
 
 use super::filter::{branch_matches, commit_filter_passes};
 use super::runner;
+use super::verify::{all_commits_signed, authors_allowed};
 
 pub struct DeployEngine {
     pub project: Arc<Project>,
@@ -25,6 +26,7 @@ pub enum DeployStep {
     Update,
     Start,
     Restart,
+    Verify,
 }
 
 impl std::fmt::Display for DeployStep {
@@ -36,6 +38,7 @@ impl std::fmt::Display for DeployStep {
             Self::Update => write!(f, "update"),
             Self::Start => write!(f, "start"),
             Self::Restart => write!(f, "restart"),
+            Self::Verify => write!(f, "verify"),
         }
     }
 }
@@ -72,6 +75,57 @@ impl DeployEngine {
             if !commit_filter_passes(event.commits(), filter) {
                 info!(project = name, "commit filter excluded this push, skipping");
                 return;
+            }
+        }
+
+        if let Some(verify) = p.commit_verify() {
+            if !authors_allowed(event.commits(), verify) {
+                warn!(
+                    project = name,
+                    "commit author not in allowlist, aborting deploy"
+                );
+                if let Some(notifier) = &self.state.notifier {
+                    notifier
+                        .send(NotifyEvent::Failed {
+                            project: name.to_owned(),
+                            step: DeployStep::Verify.to_string(),
+                            reason: "commit author not in allowlist".to_owned(),
+                        })
+                        .await;
+                }
+                return;
+            }
+
+            if verify.require_signed() {
+                match all_commits_signed(&event, self.state.github_app.as_ref()).await {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        warn!(project = name, "unsigned commit detected, aborting deploy");
+                        if let Some(notifier) = &self.state.notifier {
+                            notifier
+                                .send(NotifyEvent::Failed {
+                                    project: name.to_owned(),
+                                    step: DeployStep::Verify.to_string(),
+                                    reason: "unsigned commit detected".to_owned(),
+                                })
+                                .await;
+                        }
+                        return;
+                    }
+                    Err(e) => {
+                        error!(project = name, error = %e, "failed to verify commit signatures, aborting deploy");
+                        if let Some(notifier) = &self.state.notifier {
+                            notifier
+                                .send(NotifyEvent::Failed {
+                                    project: name.to_owned(),
+                                    step: DeployStep::Verify.to_string(),
+                                    reason: format!("failed to verify commit signatures: {e}"),
+                                })
+                                .await;
+                        }
+                        return;
+                    }
+                }
             }
         }
 

@@ -93,6 +93,7 @@ pub struct TomlProject {
     bypass: Option<bool>,
     deploy_toml: Option<bool>,
     commit_filter: Option<TomlCommitFilter>,
+    commit_verify: Option<TomlCommitVerify>,
     commands: TomlCommands,
     auth: Option<TomlProjectAuth>,
 }
@@ -126,6 +127,9 @@ impl TomlProject {
     pub fn commit_filter(&self) -> Option<&TomlCommitFilter> {
         self.commit_filter.as_ref()
     }
+    pub fn commit_verify(&self) -> Option<&TomlCommitVerify> {
+        self.commit_verify.as_ref()
+    }
     pub fn commands(&self) -> &TomlCommands {
         &self.commands
     }
@@ -140,6 +144,7 @@ pub struct TomlProjectOverride {
     pub timeout: Option<u64>,
     pub bypass: Option<bool>,
     pub commit_filter: Option<TomlCommitFilter>,
+    pub commit_verify: Option<TomlCommitVerify>,
     pub commands: Option<TomlCommands>,
     pub auth: Option<TomlProjectAuth>,
 }
@@ -188,6 +193,23 @@ impl TomlCommitFilter {
     }
     pub fn message_patterns(&self) -> &[String] {
         &self.message_patterns
+    }
+}
+
+#[derive(Deserialize, Clone, Default)]
+pub struct TomlCommitVerify {
+    #[serde(default)]
+    allowed_authors: Vec<String>,
+    #[serde(default)]
+    require_signed: bool,
+}
+
+impl TomlCommitVerify {
+    pub fn allowed_authors(&self) -> &[String] {
+        &self.allowed_authors
+    }
+    pub fn require_signed(&self) -> bool {
+        self.require_signed
     }
 }
 

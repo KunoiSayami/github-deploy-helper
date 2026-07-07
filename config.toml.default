@@ -31,6 +31,14 @@ mode  = "exclude"
 globs = ["docs/**", "*.md", "*.txt"]
 # message_patterns = ["^chore:", "\\[skip deploy\\]"]   # regex; matched against each commit message
 
+# Optional: reject a push before running any deploy command unless its commits
+# pass author/signature checks. Guards against a compromised or unauthorized
+# push (e.g. a stolen token or a misconfigured branch protection rule) triggering
+# arbitrary commands on this server.
+# [projects.commit_verify]
+# allowed_authors = ["alice@example.com", "bob@example.com"]   # matched against commit author/committer email or GitHub username, case-insensitive; empty/absent = allow any author
+# require_signed  = true   # every commit must be GPG/SSH-signed and show as "verified" on GitHub (checked via the GitHub REST API)
+
 [projects.commands]
 stop   = "systemctl stop my-api"
 init   = "cargo build --release"

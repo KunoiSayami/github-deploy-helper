@@ -6,8 +6,8 @@ use std::time::Duration;
 use anyhow::Context;
 
 use super::types::{
-    FilterMode, TomlAuthMode, TomlCommands, TomlCommitFilter, TomlConfig, TomlProjectAuth,
-    TomlProjectOverride, parse_send_to,
+    FilterMode, TomlAuthMode, TomlCommands, TomlCommitFilter, TomlCommitVerify, TomlConfig,
+    TomlProjectAuth, TomlProjectOverride, parse_send_to,
 };
 
 #[derive(Clone)]
@@ -35,6 +35,41 @@ impl From<&TomlCommitFilter> for CommitFilter {
             mode: t.mode(),
             globs: t.globs().to_vec(),
             message_patterns: t.message_patterns().to_vec(),
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct CommitVerify {
+    allowed_authors: Vec<String>,
+    require_signed: bool,
+}
+
+impl CommitVerify {
+    pub fn allowed_authors(&self) -> &[String] {
+        &self.allowed_authors
+    }
+    pub fn require_signed(&self) -> bool {
+        self.require_signed
+    }
+    #[cfg(test)]
+    pub fn for_test(allowed_authors: Vec<String>, require_signed: bool) -> Self {
+        Self {
+            allowed_authors: allowed_authors.iter().map(|a| a.to_lowercase()).collect(),
+            require_signed,
+        }
+    }
+}
+
+impl From<&TomlCommitVerify> for CommitVerify {
+    fn from(t: &TomlCommitVerify) -> Self {
+        Self {
+            allowed_authors: t
+                .allowed_authors()
+                .iter()
+                .map(|a| a.to_lowercase())
+                .collect(),
+            require_signed: t.require_signed(),
         }
     }
 }
@@ -137,6 +172,7 @@ pub struct Project {
     effective_timeout: Duration,
     bypass: bool,
     commit_filter: Option<CommitFilter>,
+    commit_verify: Option<CommitVerify>,
     commands: Commands,
     auth: ProjectAuth,
 }
@@ -169,6 +205,9 @@ impl Project {
     }
     pub fn commit_filter(&self) -> Option<&CommitFilter> {
         self.commit_filter.as_ref()
+    }
+    pub fn commit_verify(&self) -> Option<&CommitVerify> {
+        self.commit_verify.as_ref()
     }
     pub fn commands(&self) -> &Commands {
         &self.commands
@@ -262,36 +301,50 @@ pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
     let mut projects = HashMap::new();
 
     for tp in toml.projects() {
-        let (branch, timeout_override, bypass, commit_filter, commands, auth) = if tp.deploy_toml()
-        {
-            let deploy_path = format!("{}/deploy.toml", tp.working_dir());
-            let override_text = std::fs::read_to_string(&deploy_path)
-                .with_context(|| format!("Cannot read deploy.toml at {deploy_path}"))?;
-            let ov: TomlProjectOverride =
-                toml::from_str(&override_text).context("Failed to parse deploy.toml")?;
-            let merged_commands = tp
-                .commands()
-                .merge_from(ov.commands.as_ref().unwrap_or(&TomlCommands::default()));
-            let branch = ov.branch.unwrap_or_else(|| tp.branch().to_owned());
-            let timeout = ov.timeout.or(tp.timeout());
-            let bypass = ov.bypass.unwrap_or(tp.bypass());
-            let filter = ov
-                .commit_filter
-                .as_ref()
-                .or(tp.commit_filter())
-                .map(CommitFilter::from);
-            let auth = ov.auth.clone().or_else(|| tp.auth().cloned());
-            (branch, timeout, bypass, filter, merged_commands, auth)
-        } else {
-            (
-                tp.branch().to_owned(),
-                tp.timeout(),
-                tp.bypass(),
-                tp.commit_filter().map(CommitFilter::from),
-                tp.commands().clone(),
-                tp.auth().cloned(),
-            )
-        };
+        let (branch, timeout_override, bypass, commit_filter, commit_verify, commands, auth) =
+            if tp.deploy_toml() {
+                let deploy_path = format!("{}/deploy.toml", tp.working_dir());
+                let override_text = std::fs::read_to_string(&deploy_path)
+                    .with_context(|| format!("Cannot read deploy.toml at {deploy_path}"))?;
+                let ov: TomlProjectOverride =
+                    toml::from_str(&override_text).context("Failed to parse deploy.toml")?;
+                let merged_commands = tp
+                    .commands()
+                    .merge_from(ov.commands.as_ref().unwrap_or(&TomlCommands::default()));
+                let branch = ov.branch.unwrap_or_else(|| tp.branch().to_owned());
+                let timeout = ov.timeout.or(tp.timeout());
+                let bypass = ov.bypass.unwrap_or(tp.bypass());
+                let filter = ov
+                    .commit_filter
+                    .as_ref()
+                    .or(tp.commit_filter())
+                    .map(CommitFilter::from);
+                let verify = ov
+                    .commit_verify
+                    .as_ref()
+                    .or(tp.commit_verify())
+                    .map(CommitVerify::from);
+                let auth = ov.auth.clone().or_else(|| tp.auth().cloned());
+                (
+                    branch,
+                    timeout,
+                    bypass,
+                    filter,
+                    verify,
+                    merged_commands,
+                    auth,
+                )
+            } else {
+                (
+                    tp.branch().to_owned(),
+                    tp.timeout(),
+                    tp.bypass(),
+                    tp.commit_filter().map(CommitFilter::from),
+                    tp.commit_verify().map(CommitVerify::from),
+                    tp.commands().clone(),
+                    tp.auth().cloned(),
+                )
+            };
 
         let auth = match &auth {
             Some(a) => ProjectAuth::try_from(a)
@@ -320,6 +373,7 @@ pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
             effective_timeout,
             bypass,
             commit_filter,
+            commit_verify,
             commands: Commands::from(&commands),
             auth,
         });
