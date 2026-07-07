@@ -1,12 +1,10 @@
-use std::sync::Arc;
-
 use axum::body::Bytes;
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use tracing::{info, warn};
 
-use crate::AppState;
+use crate::SharedAppState;
 use crate::deploy::engine::DeployEngine;
 
 use super::payload::{PingEvent, PushEvent};
@@ -19,7 +17,8 @@ fn is_all_zeros(s: &str) -> bool {
 }
 
 pub async fn handle(
-    State(state): State<Arc<AppState>>,
+    State(app_state): State<SharedAppState>,
+    Path(name): Path<String>,
     headers: HeaderMap,
     body: Bytes,
 ) -> impl IntoResponse {
@@ -27,12 +26,9 @@ pub async fn handle(
         return (StatusCode::PAYLOAD_TOO_LARGE, "body too large").into_response();
     }
 
-    let path = headers
-        .get("X-Original-Path")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
+    let state = app_state.load_full();
 
-    let project = match state.projects.get(path) {
+    let project = match state.projects.get(&name) {
         Some(p) => p.clone(),
         None => return (StatusCode::NOT_FOUND, "unknown project").into_response(),
     };

@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Context;
+use arc_swap::ArcSwap;
 use axum::Router;
 use axum::routing::post;
 use clap::Parser;
@@ -51,10 +52,15 @@ pub struct AppState {
     pub no_lock: bool,
     pub notifier: Option<TelegramNotifier>,
     pub log_dir: PathBuf,
-    pub github_app: Option<GithubAppAuth>,
-    pub state: state::SharedState,
+    pub github_app: Option<Arc<GithubAppAuth>>,
+    pub state: Arc<state::SharedState>,
     pub shell: String,
 }
+
+/// Reloadable handle to the current `AppState` snapshot. Request handlers call
+/// `load_full()` to get a consistent `Arc<AppState>` for the duration of one
+/// request; `configure::watcher` swaps in a new snapshot on config changes.
+pub type SharedAppState = Arc<ArcSwap<AppState>>;
 
 /// Builds the EnvFilter used for logging: `default_level` when `RUST_LOG` is unset,
 /// with noisy dependency targets progressively unmuted as `verbose` increases.
@@ -151,7 +157,7 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Loaded {} project(s)", config.projects().len());
 
-    let shared_state = state::SharedState::load(config.state_file())?;
+    let shared_state = Arc::new(state::SharedState::load(config.state_file())?);
 
     let notifier = config.telegram().map(|tg| {
         notify::telegram::start(
@@ -170,76 +176,17 @@ async fn main() -> anyhow::Result<()> {
                     g.private_key_path()
                 )
             })?;
-            GithubAppAuth::new(g.app_id(), &private_key)
+            GithubAppAuth::new(g.app_id(), &private_key).map(Arc::new)
         })
         .transpose()?;
 
-    for project in config.projects().values() {
-        if std::path::Path::new(project.working_dir()).exists() {
-            continue;
-        }
-        let Some(git_url) = project.git_url() else {
-            continue;
-        };
-
-        let gh_token = match project.auth() {
-            configure::ProjectAuth::GithubApp { owner, repo } => {
-                let Some(app) = github_app.as_ref() else {
-                    tracing::error!(
-                        project = project.name(),
-                        "cannot auto-clone: auth.mode = \"github_app\" but no [github_app] config is present"
-                    );
-                    continue;
-                };
-                match app.get_token(owner, repo).await {
-                    Ok(token) => Some(token),
-                    Err(e) => {
-                        tracing::error!(project = project.name(), error = %e, "auto-clone: failed to obtain GitHub App token");
-                        continue;
-                    }
-                }
-            }
-            configure::ProjectAuth::Ssh => None,
-        };
-
-        info!(
-            project = project.name(),
-            path = project.working_dir(),
-            "working_dir missing, cloning"
-        );
-        if let Err(e) = deploy::git::clone(
-            git_url,
-            project.working_dir(),
-            project.branch(),
-            gh_token.as_deref(),
-        )
-        .await
-        {
-            tracing::error!(project = project.name(), error = %e, "auto-clone failed");
-        }
-    }
-
-    if let (Some(app), Some(base_url)) = (
-        github_app.as_ref(),
-        config.github_app().and_then(|g| g.public_base_url()),
-    ) {
-        for project in config.projects().values() {
-            if let configure::ProjectAuth::GithubApp { owner, repo } = project.auth() {
-                let webhook_url =
-                    format!("{}{}", base_url.trim_end_matches('/'), project.http_path());
-                if let Err(e) = app
-                    .ensure_webhook(owner, repo, &webhook_url, project.secret())
-                    .await
-                {
-                    tracing::warn!(
-                        project = project.name(),
-                        error = %e,
-                        "failed to auto-configure GitHub webhook"
-                    );
-                }
-            }
-        }
-    }
+    configure::bootstrap::clone_missing_projects(config.projects(), github_app.as_deref()).await;
+    configure::bootstrap::ensure_webhooks(
+        config.projects(),
+        github_app.as_deref(),
+        config.github_app(),
+    )
+    .await;
 
     if args.force_init {
         for project in config.projects().values() {
@@ -251,11 +198,21 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let locks: DeployLockMap = Arc::new(DashMap::new());
-    for path in config.projects().keys() {
-        locks.insert(path.clone(), Arc::new(DeployLock::default()));
+    for project in config.projects().values() {
+        locks.insert(
+            project.http_path().to_owned(),
+            Arc::new(DeployLock::default()),
+        );
+        info!(
+            project = project.name(),
+            path = project.http_path(),
+            "registered project"
+        );
     }
 
-    let state = Arc::new(AppState {
+    let bind = config.bind().to_owned();
+
+    let app_state: SharedAppState = Arc::new(ArcSwap::from_pointee(AppState {
         projects: config.projects().clone(),
         locks,
         no_lock: args.no_lock,
@@ -264,37 +221,18 @@ async fn main() -> anyhow::Result<()> {
         log_dir,
         state: shared_state,
         shell: config.shell().to_owned(),
-    });
+    }));
 
-    let mut router = Router::new();
-    for (path, project) in config.projects() {
-        let project_path = path.clone();
-        let state_clone = state.clone();
+    tokio::spawn(configure::watcher::watch(
+        args.config.clone(),
+        app_state.clone(),
+        config,
+    ));
 
-        // Inject project path via a custom header so the generic handler can look it up
-        let handler_state = state_clone.clone();
-        router = router.route(
-            path,
-            post({
-                let path_header = project_path.clone();
-                move |mut headers: axum::http::HeaderMap, body: axum::body::Bytes| {
-                    let state = handler_state.clone();
-                    headers.insert("X-Original-Path", path_header.parse().unwrap());
-                    async move {
-                        webhook::handler::handle(axum::extract::State(state), headers, body).await
-                    }
-                }
-            }),
-        );
+    let router = Router::new()
+        .route("/webhook/{name}", post(webhook::handler::handle))
+        .with_state(app_state.clone());
 
-        info!(
-            project = project.name(),
-            path = project_path,
-            "registered webhook route"
-        );
-    }
-
-    let bind = config.bind().to_owned();
     info!("Listening on {bind}");
 
     let listener = tokio::net::TcpListener::bind(&bind).await?;

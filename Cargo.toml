@@ -1,6 +1,6 @@
 [package]
 name = "github-deploy-helper"
-version = "0.10.1"
+version = "0.11.0"
 edition = "2024"
 
 [dependencies]
@@ -34,6 +34,8 @@ rustls = { version = "0.23", default-features = false, features = [
     "aws_lc_rs",
 ] }
 regex = "1"
+notify = "8"
+arc-swap = "1"
 
 [profile.release]
 lto = true

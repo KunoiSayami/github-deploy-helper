@@ -97,7 +97,7 @@ impl DeployEngine {
             }
 
             if verify.require_signed() {
-                match all_commits_signed(&event, self.state.github_app.as_ref()).await {
+                match all_commits_signed(&event, self.state.github_app.as_deref()).await {
                     Ok(true) => {}
                     Ok(false) => {
                         warn!(project = name, "unsigned commit detected, aborting deploy");

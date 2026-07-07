@@ -144,6 +144,7 @@ impl TryFrom<&TomlProjectAuth> for ProjectAuth {
     }
 }
 
+#[derive(PartialEq)]
 pub struct GithubAppConfig {
     app_id: u64,
     private_key_path: String,
@@ -217,6 +218,7 @@ impl Project {
     }
 }
 
+#[derive(PartialEq)]
 pub struct TelegramConfig {
     bot_token: String,
     api_server: Option<String>,
@@ -378,7 +380,7 @@ pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
             auth,
         });
 
-        projects.insert(http_path, project);
+        projects.insert(tp.name().to_owned(), project);
     }
 
     Ok(Config {
