@@ -216,7 +216,7 @@ impl DeployEngine {
                         if !out.success {
                             return DeployOutcome::Aborted {
                                 step: DeployStep::Stop,
-                                reason: format!("exit failure, see {name}.log"),
+                                reason: out.failure_summary(name),
                             };
                         }
                         info!(project = name, "stop completed");
@@ -262,7 +262,7 @@ impl DeployEngine {
                     if !out.success {
                         return DeployOutcome::Aborted {
                             step: DeployStep::Pull,
-                            reason: format!("exit failure, see {name}.log"),
+                            reason: out.failure_summary(name),
                         };
                     }
                     info!(project = name, "pull completed");
@@ -290,7 +290,7 @@ impl DeployEngine {
                         if !out.success {
                             return DeployOutcome::Aborted {
                                 step: DeployStep::Init,
-                                reason: format!("exit failure, see {name}.log"),
+                                reason: out.failure_summary(name),
                             };
                         }
                         info!(project = name, "init completed");
@@ -318,7 +318,7 @@ impl DeployEngine {
                     if !out.success {
                         return DeployOutcome::Aborted {
                             step: DeployStep::Update,
-                            reason: format!("exit failure, see {name}.log"),
+                            reason: out.failure_summary(name),
                         };
                     }
                     info!(project = name, "update completed");
@@ -343,7 +343,7 @@ impl DeployEngine {
                     if !out.success {
                         return DeployOutcome::Aborted {
                             step: DeployStep::Restart,
-                            reason: format!("exit failure, see {name}.log"),
+                            reason: out.failure_summary(name),
                         };
                     }
                     info!(project = name, "restart completed");
@@ -363,7 +363,7 @@ impl DeployEngine {
                     if !out.success {
                         return DeployOutcome::Aborted {
                             step: DeployStep::Start,
-                            reason: format!("exit failure, see {name}.log"),
+                            reason: out.failure_summary(name),
                         };
                     }
                     info!(project = name, "start completed");

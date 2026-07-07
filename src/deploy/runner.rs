@@ -9,6 +9,27 @@ pub struct CommandOutput {
     pub success: bool,
 }
 
+impl CommandOutput {
+    /// Builds a short failure summary for notifications: the last few lines of
+    /// stderr, falling back to stdout if stderr is empty.
+    pub fn failure_summary(&self, name: &str) -> String {
+        const MAX_LINES: usize = 8;
+
+        let source = if self.stderr.trim().is_empty() {
+            &self.stdout
+        } else {
+            &self.stderr
+        };
+        let tail: Vec<&str> = source.lines().rev().take(MAX_LINES).collect();
+
+        if tail.is_empty() {
+            return format!("exit failure, see {name}.log");
+        }
+        let tail: Vec<&str> = tail.into_iter().rev().collect();
+        format!("exit failure:\n{}", tail.join("\n"))
+    }
+}
+
 /// Runs a shell command in `working_dir` with a `timeout`.
 /// The command string is passed to `<shell> -c`. `extra_env`, if set, is passed via the
 /// process environment rather than interpolated into the command string, so secrets
