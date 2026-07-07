@@ -9,8 +9,9 @@ pub fn branch_matches(event: &PushEvent, expected: &str) -> bool {
 
 /// Returns true if the deploy should proceed based on the commit filter.
 /// No filter → always proceed.
-/// Include mode → proceed if ANY commit touches ANY matching glob.
-/// Exclude mode → proceed if NO commit touches ANY matching glob.
+/// Include mode → proceed if ANY changed file matches a glob.
+/// Exclude mode → proceed only if NOT every changed file matches a glob
+/// (i.e. skip only when the push touches nothing but excluded files).
 pub fn commit_filter_passes(commits: &[CommitInfo], filter: &CommitFilter) -> bool {
     let patterns: Vec<Pattern> = filter
         .globs()
@@ -22,14 +23,13 @@ pub fn commit_filter_passes(commits: &[CommitInfo], filter: &CommitFilter) -> bo
         return true;
     }
 
-    let any_matches = commits.iter().any(|commit| {
-        commit
-            .all_files()
-            .any(|file| patterns.iter().any(|p| p.matches(file)))
-    });
+    let mut all_files = commits.iter().flat_map(CommitInfo::all_files).peekable();
 
     match filter.mode() {
-        FilterMode::Include => any_matches,
-        FilterMode::Exclude => !any_matches,
+        FilterMode::Include => all_files.any(|file| patterns.iter().any(|p| p.matches(file))),
+        FilterMode::Exclude => {
+            all_files.peek().is_none()
+                || !all_files.all(|file| patterns.iter().any(|p| p.matches(file)))
+        }
     }
 }
