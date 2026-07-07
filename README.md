@@ -202,10 +202,10 @@ Options:
 
 ## Logging
 
-- **Program logs** (startup, requests, errors) → stdout/stderr
-- **Deploy execution logs** (commands, output, outcomes) → `<log_dir>/deploy.log.<date>` (daily rolling)
+- **Program logs** (startup, requests, step summaries, errors) → stdout/stderr and `<log_dir>/deploy.log.<date>` (daily rolling)
+- **Deploy command output** (raw stdout/stderr of each stop/pull/init/update/start/restart run) → `<log_dir>/<project-name>.log` (append-only, one file per project)
 
-The `log_keep_days` setting automatically removes log files older than the specified number of days. Set to `0` to disable cleanup.
+The `log_keep_days` setting automatically removes log files older than the specified number of days (based on last-modified time) from `log_dir`, including per-project logs. Set to `0` to disable cleanup.
 
 ## License
 

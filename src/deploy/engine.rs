@@ -7,6 +7,8 @@ use crate::configure::{Project, ProjectAuth};
 use crate::notify::telegram::NotifyEvent;
 use crate::webhook::payload::PushEvent;
 
+use crate::logging::project_log::ProjectLog;
+
 use super::filter::{branch_matches, commit_filter_passes};
 use super::runner;
 
@@ -143,6 +145,7 @@ impl DeployEngine {
         };
 
         let use_restart = p.commands().restart().is_some();
+        let project_log = ProjectLog::new(&self.state.log_dir, name);
 
         if !use_restart {
             if let Some(stop_cmd) = p.commands().stop() {
@@ -154,14 +157,15 @@ impl DeployEngine {
                             reason: e.to_string(),
                         };
                     }
-                    Ok(out) if !out.success => {
-                        return DeployOutcome::Aborted {
-                            step: DeployStep::Stop,
-                            reason: format!("exit failure\nstderr: {}", out.stderr),
-                        };
-                    }
                     Ok(out) => {
-                        info!(project = name, stdout = out.stdout.trim(), "stop completed");
+                        project_log.write_command("stop", stop_cmd, &out).await;
+                        if !out.success {
+                            return DeployOutcome::Aborted {
+                                step: DeployStep::Stop,
+                                reason: format!("exit failure, see {name}.log"),
+                            };
+                        }
+                        info!(project = name, "stop completed");
                     }
                 }
             }
@@ -199,14 +203,15 @@ impl DeployEngine {
                         reason: e.to_string(),
                     };
                 }
-                Ok(out) if !out.success => {
-                    return DeployOutcome::Aborted {
-                        step: DeployStep::Pull,
-                        reason: format!("exit failure\nstderr: {}", out.stderr),
-                    };
-                }
                 Ok(out) => {
-                    info!(project = name, stdout = out.stdout.trim(), "pull completed");
+                    project_log.write_command("pull", pull_cmd, &out).await;
+                    if !out.success {
+                        return DeployOutcome::Aborted {
+                            step: DeployStep::Pull,
+                            reason: format!("exit failure, see {name}.log"),
+                        };
+                    }
+                    info!(project = name, "pull completed");
                 }
             }
         }
@@ -226,14 +231,15 @@ impl DeployEngine {
                             reason: e.to_string(),
                         };
                     }
-                    Ok(out) if !out.success => {
-                        return DeployOutcome::Aborted {
-                            step: DeployStep::Init,
-                            reason: format!("exit failure\nstderr: {}", out.stderr),
-                        };
-                    }
                     Ok(out) => {
-                        info!(project = name, stdout = out.stdout.trim(), "init completed");
+                        project_log.write_command("init", init_cmd, &out).await;
+                        if !out.success {
+                            return DeployOutcome::Aborted {
+                                step: DeployStep::Init,
+                                reason: format!("exit failure, see {name}.log"),
+                            };
+                        }
+                        info!(project = name, "init completed");
                         if let Err(e) = self.state.state.mark_initialized(name).await {
                             warn!(project = name, error = %e, "failed to persist init state");
                         }
@@ -253,18 +259,15 @@ impl DeployEngine {
                         reason: e.to_string(),
                     };
                 }
-                Ok(out) if !out.success => {
-                    return DeployOutcome::Aborted {
-                        step: DeployStep::Update,
-                        reason: format!("exit failure\nstderr: {}", out.stderr),
-                    };
-                }
                 Ok(out) => {
-                    info!(
-                        project = name,
-                        stdout = out.stdout.trim(),
-                        "update completed"
-                    );
+                    project_log.write_command("update", update_cmd, &out).await;
+                    if !out.success {
+                        return DeployOutcome::Aborted {
+                            step: DeployStep::Update,
+                            reason: format!("exit failure, see {name}.log"),
+                        };
+                    }
+                    info!(project = name, "update completed");
                 }
             }
         }
@@ -279,18 +282,17 @@ impl DeployEngine {
                         reason: e.to_string(),
                     };
                 }
-                Ok(out) if !out.success => {
-                    return DeployOutcome::Aborted {
-                        step: DeployStep::Restart,
-                        reason: format!("exit failure\nstderr: {}", out.stderr),
-                    };
-                }
                 Ok(out) => {
-                    info!(
-                        project = name,
-                        stdout = out.stdout.trim(),
-                        "restart completed"
-                    );
+                    project_log
+                        .write_command("restart", restart_cmd, &out)
+                        .await;
+                    if !out.success {
+                        return DeployOutcome::Aborted {
+                            step: DeployStep::Restart,
+                            reason: format!("exit failure, see {name}.log"),
+                        };
+                    }
+                    info!(project = name, "restart completed");
                 }
             }
         } else if let Some(start_cmd) = p.commands().start() {
@@ -302,18 +304,15 @@ impl DeployEngine {
                         reason: e.to_string(),
                     };
                 }
-                Ok(out) if !out.success => {
-                    return DeployOutcome::Aborted {
-                        step: DeployStep::Start,
-                        reason: format!("exit failure\nstderr: {}", out.stderr),
-                    };
-                }
                 Ok(out) => {
-                    info!(
-                        project = name,
-                        stdout = out.stdout.trim(),
-                        "start completed"
-                    );
+                    project_log.write_command("start", start_cmd, &out).await;
+                    if !out.success {
+                        return DeployOutcome::Aborted {
+                            step: DeployStep::Start,
+                            reason: format!("exit failure, see {name}.log"),
+                        };
+                    }
+                    info!(project = name, "start completed");
                 }
             }
         }
