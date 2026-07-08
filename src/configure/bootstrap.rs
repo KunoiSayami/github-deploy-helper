@@ -7,8 +7,9 @@ use crate::auth::github_app::GithubAppAuth;
 
 use super::{GithubAppConfig, Project, ProjectAuth};
 
-/// Clones any project whose `working_dir` doesn't exist yet but has a `git_url`
-/// configured. Used both at startup and after a config reload introduces a new
+/// Ensures every project's `working_dir` exists: clones it if `git_url` is
+/// configured, otherwise just creates the directory so deploy commands have a
+/// valid cwd. Used both at startup and after a config reload introduces a new
 /// project.
 pub async fn clone_missing_projects(
     projects: &HashMap<String, Arc<Project>>,
@@ -19,6 +20,11 @@ pub async fn clone_missing_projects(
             continue;
         }
         let Some(git_url) = project.git_url() else {
+            // Not git-managed (e.g. no_pull webhook-only project): just make sure
+            // working_dir exists so deploy commands have a valid cwd to run in.
+            if let Err(e) = std::fs::create_dir_all(project.working_dir()) {
+                tracing::error!(project = project.name(), path = project.working_dir(), error = %e, "failed to create working_dir");
+            }
             continue;
         };
 

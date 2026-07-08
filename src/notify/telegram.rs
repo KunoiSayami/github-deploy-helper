@@ -1,4 +1,5 @@
 use teloxide::prelude::*;
+use teloxide::sugar::request::RequestLinkPreviewExt;
 use teloxide::types::{ChatId, ParseMode};
 use tokio::sync::mpsc;
 use tracing::{error, warn};
@@ -101,7 +102,11 @@ pub fn start(bot_token: String, api_server: Option<String>, send_to: Vec<i64>) -
                 Cmd::Stop => break,
                 Cmd::Send(text) => {
                     for &chat_id in &send_to {
-                        if let Err(e) = bot.send_message(ChatId(chat_id), &text).await {
+                        let request = bot
+                            .send_message(ChatId(chat_id), &text)
+                            .disable_link_preview(true);
+
+                        if let Err(e) = request.await {
                             error!("Telegram send_message error: {e}");
                         }
                     }

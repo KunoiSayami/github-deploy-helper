@@ -1,7 +1,12 @@
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use anyhow::Context;
+use regex::Regex;
 use tokio::process::Command;
+
+static ANSI_ESCAPE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\x1b(\[[0-9;]*[A-Za-z]|\([A-Za-z0-9])").unwrap());
 
 pub struct CommandOutput {
     pub stdout: String,
@@ -11,7 +16,8 @@ pub struct CommandOutput {
 
 impl CommandOutput {
     /// Builds a short failure summary for notifications: the last few lines of
-    /// stderr, falling back to stdout if stderr is empty.
+    /// stderr, falling back to stdout if stderr is empty. ANSI escape codes
+    /// (color, cursor movement) are stripped since notifications are plain text.
     pub fn failure_summary(&self, name: &str) -> String {
         const MAX_LINES: usize = 8;
 
@@ -20,6 +26,7 @@ impl CommandOutput {
         } else {
             &self.stderr
         };
+        let source = ANSI_ESCAPE.replace_all(source, "");
         let tail: Vec<&str> = source.lines().rev().take(MAX_LINES).collect();
 
         if tail.is_empty() {
