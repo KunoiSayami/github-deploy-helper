@@ -23,7 +23,7 @@ impl CommandOutput {
         let tail: Vec<&str> = source.lines().rev().take(MAX_LINES).collect();
 
         if tail.is_empty() {
-            return format!("exit failure, see {name}.log");
+            return format!("exit failure, see {name}/ log folder");
         }
         let tail: Vec<&str> = tail.into_iter().rev().collect();
         format!("exit failure:\n{}", tail.join("\n"))

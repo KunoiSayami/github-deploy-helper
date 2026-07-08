@@ -23,13 +23,19 @@ working_dir = "/srv/my-api"
 secret      = "your-webhook-secret-here"
 branch      = "main"
 timeout     = 60
-bypass      = false
+bypass      = false   # when true, skip all deploy steps for this project (webhook still received)
 deploy_toml = false
 
 [projects.commit_filter]
 mode  = "exclude"
 globs = ["docs/**", "*.md", "*.txt"]
 # message_patterns = ["^chore:", "\\[skip deploy\\]"]   # regex; matched against each commit message
+
+# Include-only mode: deploy only when a changed file or commit message matches.
+# Any push that matches nothing below is skipped.
+# mode  = "include"
+# globs = ["src/**", "Cargo.toml"]
+# message_patterns = ["^deploy:"]
 
 # Optional: reject a push before running any deploy command unless its commits
 # pass author/signature checks. Guards against a compromised or unauthorized
