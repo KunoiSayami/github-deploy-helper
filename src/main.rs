@@ -69,7 +69,9 @@ fn build_env_filter(verbose: u8, default_level: &str) -> EnvFilter {
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_level));
 
     if verbose < 5 {
-        filter = filter.add_directive("quinn_proto::connection=warn".parse().unwrap());
+        filter = filter
+            .add_directive("quinn_proto::connection=warn".parse().unwrap())
+            .add_directive("hyper_util::client::legacy::pool=warn".parse().unwrap());
     }
     if verbose < 4 {
         filter = filter
