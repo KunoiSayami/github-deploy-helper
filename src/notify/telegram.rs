@@ -1,7 +1,9 @@
+use std::time::Duration;
+
 use teloxide::prelude::*;
 use teloxide::sugar::request::RequestLinkPreviewExt;
-use teloxide::types::{ChatId, ParseMode};
-use tokio::sync::mpsc;
+use teloxide::types::{ChatId, MessageId, ParseMode};
+use tokio::sync::{mpsc, oneshot};
 use tracing::{error, warn};
 
 pub enum NotifyEvent {
@@ -11,6 +13,7 @@ pub enum NotifyEvent {
     },
     Success {
         project: String,
+        elapsed: Duration,
     },
     Failed {
         project: String,
@@ -20,7 +23,7 @@ pub enum NotifyEvent {
 }
 
 impl NotifyEvent {
-    fn message(&self) -> String {
+    pub fn message(&self) -> String {
         match self {
             Self::Started {
                 project,
@@ -29,7 +32,12 @@ impl NotifyEvent {
                 Some(summary) => format!("🚀 <b>{project}</b>: deploy started\n\n{summary}"),
                 None => format!("🚀 <b>{project}</b>: deploy started"),
             },
-            Self::Success { project } => format!("✅ <b>{project}</b>: deploy succeeded"),
+            Self::Success { project, elapsed } => {
+                format!(
+                    "✅ <b>{project}</b>: deploy succeeded in {}",
+                    format_elapsed(*elapsed)
+                )
+            }
             Self::Failed {
                 project,
                 step,
@@ -44,6 +52,17 @@ impl NotifyEvent {
     }
 }
 
+fn format_elapsed(elapsed: Duration) -> String {
+    let secs = elapsed.as_secs();
+    if secs == 0 {
+        format!("{}ms", elapsed.as_millis())
+    } else if secs < 60 {
+        format!("{:.1}s", elapsed.as_secs_f64())
+    } else {
+        format!("{}m {:02}s", secs / 60, secs % 60)
+    }
+}
+
 fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -51,7 +70,8 @@ fn html_escape(s: &str) -> String {
 }
 
 enum Cmd {
-    Send(String),
+    Send(String, oneshot::Sender<Vec<(ChatId, MessageId)>>),
+    Edit(ChatId, MessageId, String),
     Stop,
 }
 
@@ -61,8 +81,21 @@ pub struct TelegramNotifier {
 }
 
 impl TelegramNotifier {
-    pub async fn send(&self, event: NotifyEvent) {
-        let _ = self.tx.send(Cmd::Send(event.message())).await;
+    pub async fn send(&self, event: NotifyEvent) -> Vec<(ChatId, MessageId)> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .tx
+            .send(Cmd::Send(event.message(), reply_tx))
+            .await
+            .is_err()
+        {
+            return Vec::new();
+        }
+        reply_rx.await.unwrap_or_default()
+    }
+
+    pub async fn edit(&self, chat_id: ChatId, message_id: MessageId, text: String) {
+        let _ = self.tx.send(Cmd::Edit(chat_id, message_id, text)).await;
     }
 
     pub async fn shutdown(&self) {
@@ -100,12 +133,27 @@ pub fn start(bot_token: String, api_server: Option<String>, send_to: Vec<i64>) -
         while let Some(cmd) = rx.recv().await {
             match cmd {
                 Cmd::Stop => break,
-                Cmd::Send(text) => {
+                Cmd::Send(text, reply_tx) => {
+                    let mut sent = Vec::with_capacity(send_to.len());
                     for &chat_id in &send_to {
-                        let request = bot
-                            .send_message(ChatId(chat_id), &text)
-                            .disable_link_preview(true);
+                        let chat_id = ChatId(chat_id);
+                        let request = bot.send_message(chat_id, &text).disable_link_preview(true);
 
+                        match request.await {
+                            Ok(message) => sent.push((chat_id, message.id)),
+                            Err(e) => error!("Telegram send_message error: {e}"),
+                        }
+                    }
+                    let _ = reply_tx.send(sent);
+                }
+                Cmd::Edit(chat_id, message_id, text) => {
+                    let request = bot.edit_message_text(chat_id, message_id, &text);
+
+                    if let Err(e) = request.await {
+                        error!(
+                            "Telegram edit_message_text error: {e}, falling back to new message"
+                        );
+                        let request = bot.send_message(chat_id, &text).disable_link_preview(true);
                         if let Err(e) = request.await {
                             error!("Telegram send_message error: {e}");
                         }
