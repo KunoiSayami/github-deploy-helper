@@ -743,7 +743,7 @@ dependencies = [
 
 [[package]]
 name = "github-deploy-helper"
-version = "0.12.2"
+version = "0.13.0"
 dependencies = [
  "anyhow",
  "arc-swap",
