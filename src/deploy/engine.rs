@@ -132,13 +132,13 @@ impl DeployEngine {
         info!(project = name, "deploy triggered");
 
         let start = std::time::Instant::now();
+        let commit_summary = (!event.commits().is_empty()).then(|| event.render_commit_summary());
         let mut started_msgs = Vec::new();
         if let Some(notifier) = &self.state.notifier {
             started_msgs = notifier
                 .send(NotifyEvent::Started {
                     project: name.to_owned(),
-                    commit_summary: (!event.commits().is_empty())
-                        .then(|| event.render_commit_summary()),
+                    commit_summary: commit_summary.clone(),
                 })
                 .await;
         }
@@ -155,12 +155,14 @@ impl DeployEngine {
                             .send(NotifyEvent::Success {
                                 project: name.to_owned(),
                                 elapsed,
+                                commit_summary,
                             })
                             .await;
                     } else {
                         let text = NotifyEvent::Success {
                             project: name.to_owned(),
                             elapsed,
+                            commit_summary,
                         }
                         .message();
                         for (chat_id, message_id) in started_msgs.drain(..) {

@@ -14,6 +14,7 @@ pub enum NotifyEvent {
     Success {
         project: String,
         elapsed: Duration,
+        commit_summary: Option<String>,
     },
     Failed {
         project: String,
@@ -32,11 +33,19 @@ impl NotifyEvent {
                 Some(summary) => format!("🚀 <b>{project}</b>: deploy started\n\n{summary}"),
                 None => format!("🚀 <b>{project}</b>: deploy started"),
             },
-            Self::Success { project, elapsed } => {
-                format!(
+            Self::Success {
+                project,
+                elapsed,
+                commit_summary,
+            } => {
+                let title = format!(
                     "✅ <b>{project}</b>: deploy succeeded in {}",
                     format_elapsed(*elapsed)
-                )
+                );
+                match commit_summary {
+                    Some(summary) => format!("{title}\n\n{summary}"),
+                    None => title,
+                }
             }
             Self::Failed {
                 project,
