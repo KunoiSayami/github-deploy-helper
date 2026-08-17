@@ -11,6 +11,12 @@ pub enum NotifyEvent {
         project: String,
         commit_summary: Option<String>,
     },
+    Progress {
+        project: String,
+        step: String,
+        elapsed: Duration,
+        commit_summary: Option<String>,
+    },
     Success {
         project: String,
         elapsed: Duration,
@@ -29,17 +35,38 @@ impl NotifyEvent {
             Self::Started {
                 project,
                 commit_summary,
-            } => match commit_summary {
-                Some(summary) => format!("🚀 <b>{project}</b>: deploy started\n\n{summary}"),
-                None => format!("🚀 <b>{project}</b>: deploy started"),
-            },
+            } => {
+                let project = html_escape(project);
+                match commit_summary {
+                    Some(summary) => format!("🚀 <b>{project}</b>: deploy started\n\n{summary}"),
+                    None => format!("🚀 <b>{project}</b>: deploy started"),
+                }
+            }
+            Self::Progress {
+                project,
+                step,
+                elapsed,
+                commit_summary,
+            } => {
+                let title = format!(
+                    "🚀 <b>{}</b>: deploy started\n\nrunning <code>{}</code>… ({} elapsed)",
+                    html_escape(project),
+                    html_escape(step),
+                    format_elapsed(*elapsed)
+                );
+                match commit_summary {
+                    Some(summary) => format!("{title}\n\n{summary}"),
+                    None => title,
+                }
+            }
             Self::Success {
                 project,
                 elapsed,
                 commit_summary,
             } => {
                 let title = format!(
-                    "✅ <b>{project}</b>: deploy succeeded in {}",
+                    "✅ <b>{}</b>: deploy succeeded in {}",
+                    html_escape(project),
                     format_elapsed(*elapsed)
                 );
                 match commit_summary {
@@ -52,6 +79,8 @@ impl NotifyEvent {
                 step,
                 reason,
             } => {
+                let project = html_escape(project);
+                let step = html_escape(step);
                 let escaped = html_escape(reason);
                 format!(
                     "❌ <b>{project}</b>: deploy failed at <code>{step}</code>\n<pre>{escaped}</pre>"
