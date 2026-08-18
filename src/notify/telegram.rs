@@ -185,7 +185,9 @@ pub fn start(bot_token: String, api_server: Option<String>, send_to: Vec<i64>) -
                     let _ = reply_tx.send(sent);
                 }
                 Cmd::Edit(chat_id, message_id, text) => {
-                    let request = bot.edit_message_text(chat_id, message_id, &text);
+                    let request = bot
+                        .edit_message_text(chat_id, message_id, &text)
+                        .disable_link_preview(true);
 
                     if let Err(e) = request.await {
                         error!(
