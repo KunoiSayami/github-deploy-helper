@@ -62,6 +62,7 @@ impl DeployEngine {
     pub async fn run(&self, event: PushEvent) {
         let p = &self.project;
         let name = p.name();
+        let start = std::time::Instant::now();
 
         if !branch_matches(&event, p.branch()) {
             info!(
@@ -92,6 +93,7 @@ impl DeployEngine {
                             project: name.to_owned(),
                             step: DeployStep::Verify.to_string(),
                             reason: "commit author not in allowlist".to_owned(),
+                            elapsed: start.elapsed(),
                         })
                         .await;
                 }
@@ -109,6 +111,7 @@ impl DeployEngine {
                                     project: name.to_owned(),
                                     step: DeployStep::Verify.to_string(),
                                     reason: "unsigned commit detected".to_owned(),
+                                    elapsed: start.elapsed(),
                                 })
                                 .await;
                         }
@@ -122,6 +125,7 @@ impl DeployEngine {
                                     project: name.to_owned(),
                                     step: DeployStep::Verify.to_string(),
                                     reason: format!("failed to verify commit signatures: {e}"),
+                                    elapsed: start.elapsed(),
                                 })
                                 .await;
                         }
@@ -133,7 +137,6 @@ impl DeployEngine {
 
         info!(project = name, "deploy triggered");
 
-        let start = std::time::Instant::now();
         let commit_summary = (!event.commits().is_empty()).then(|| event.render_commit_summary());
         let mut started_msgs = Vec::new();
         if let Some(notifier) = &self.state.notifier {
@@ -199,13 +202,28 @@ impl DeployEngine {
             DeployOutcome::Aborted { step, reason } => {
                 error!(project = name, step = %step, reason, "deploy aborted");
                 if let Some(notifier) = &self.state.notifier {
-                    notifier
-                        .send(NotifyEvent::Failed {
+                    let elapsed = start.elapsed();
+                    if started_msgs.is_empty() {
+                        notifier
+                            .send(NotifyEvent::Failed {
+                                project: name.to_owned(),
+                                step: step.to_string(),
+                                reason: reason.clone(),
+                                elapsed,
+                            })
+                            .await;
+                    } else {
+                        let text = NotifyEvent::Failed {
                             project: name.to_owned(),
                             step: step.to_string(),
                             reason: reason.clone(),
-                        })
-                        .await;
+                            elapsed,
+                        }
+                        .message();
+                        for (chat_id, message_id) in started_msgs.drain(..) {
+                            notifier.edit(chat_id, message_id, text.clone()).await;
+                        }
+                    }
                 }
             }
             DeployOutcome::Bypassed => {

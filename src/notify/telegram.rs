@@ -26,6 +26,7 @@ pub enum NotifyEvent {
         project: String,
         step: String,
         reason: String,
+        elapsed: Duration,
     },
 }
 
@@ -78,12 +79,14 @@ impl NotifyEvent {
                 project,
                 step,
                 reason,
+                elapsed,
             } => {
                 let project = html_escape(project);
                 let step = html_escape(step);
                 let escaped = html_escape(reason);
+                let elapsed = format_elapsed(*elapsed);
                 format!(
-                    "❌ <b>{project}</b>: deploy failed at <code>{step}</code>\n<pre>{escaped}</pre>"
+                    "❌ <b>{project}</b>: deploy failed at <code>{step}</code> ({elapsed} elapsed)\n<pre>{escaped}</pre>"
                 )
             }
         }
